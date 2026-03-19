@@ -13,6 +13,7 @@ _LANGUAGES: dict[str, Language] = {}
 @dataclass
 class LanguageConfig:
     """Configuration for a supported language."""
+
     name: str
     extensions: tuple[str, ...]
     loader: str  # module path for tree-sitter grammar
@@ -349,24 +350,6 @@ LANGUAGES: dict[str, LanguageConfig] = {
         loader="tree_sitter_markdown",
         symbol_query=_MARKDOWN_QUERY,
     ),
-    "dart": LanguageConfig(
-        name="dart",
-        extensions=(".dart",),
-        loader="tree_sitter_dart",
-        symbol_query=_DART_QUERY,
-    ),
-    "swift": LanguageConfig(
-        name="swift",
-        extensions=(".swift",),
-        loader="tree_sitter_swift",
-        symbol_query=_SWIFT_QUERY,
-    ),
-    "kotlin": LanguageConfig(
-        name="kotlin",
-        extensions=(".kt", ".kts"),
-        loader="tree_sitter_kotlin",
-        symbol_query=_KOTLIN_QUERY,
-    ),
     "java": LanguageConfig(
         name="java",
         extensions=(".java",),
@@ -426,6 +409,7 @@ def get_language(name: str) -> Language | None:
 
     try:
         import importlib
+
         mod = importlib.import_module(config.loader)
         if name == "typescript":
             lang = Language(mod.language_typescript())
@@ -447,6 +431,7 @@ def get_tsx_language() -> Language | None:
         return _LANGUAGES["tsx"]
     try:
         import tree_sitter_typescript as tsts
+
         lang = Language(tsts.language_tsx())
         _LANGUAGES["tsx"] = lang
         return lang

@@ -112,35 +112,45 @@ def _build_dynamic_instructions() -> str:
             project_names = [p.get("name", "?") for p in projects[:10]]
 
             lines.append(f"## Your Workspace: {_workspace_name}")
-            lines.append(f"You have access to **{project_count} indexed project{'s' if project_count != 1 else ''}** "
-                         f"containing **{total_files:,} files**, **{total_symbols:,} symbols**, "
-                         f"and **{total_edges:,} relationships**.")
+            lines.append(
+                f"You have access to **{project_count} indexed project{'s' if project_count != 1 else ''}** "
+                f"containing **{total_files:,} files**, **{total_symbols:,} symbols**, "
+                f"and **{total_edges:,} relationships**."
+            )
             if project_names:
                 names_str = ", ".join(project_names)
                 if project_count > 10:
                     names_str += f", ... and {project_count - 10} more"
                 lines.append(f"Projects: {names_str}")
             lines.append("")
-            lines.append("You can search across all projects at once, trace function calls, "
-                         "find who changed code and why, and discover relationships between symbols.")
+            lines.append(
+                "You can search across all projects at once, trace function calls, "
+                "find who changed code and why, and discover relationships between symbols."
+            )
             lines.append("")
         elif _db_path is not None:
             db = _get_db()
             stats = db.stats()
             lines.append("## Your Codebase")
-            lines.append(f"You have access to **{stats['files']:,} files**, "
-                         f"**{stats['symbols']:,} symbols**, "
-                         f"and **{stats['edges']:,} relationships**.")
+            lines.append(
+                f"You have access to **{stats['files']:,} files**, "
+                f"**{stats['symbols']:,} symbols**, "
+                f"and **{stats['edges']:,} relationships**."
+            )
             if stats.get("languages"):
                 lang_list = ", ".join(stats["languages"].keys())
                 lines.append(f"Languages: {lang_list}")
             lines.append("")
-            lines.append("You can search code, trace function calls, "
-                         "find who changed code and why, and discover relationships between symbols.")
+            lines.append(
+                "You can search code, trace function calls, "
+                "find who changed code and why, and discover relationships between symbols."
+            )
             lines.append("")
     except Exception:
         # If we can't get stats (e.g. DB not yet initialized), fall back to generic text
-        lines.append("You have access to a code index with searchable symbols, call graphs, and git history.")
+        lines.append(
+            "You have access to a code index with searchable symbols, call graphs, and git history."
+        )
         lines.append("")
 
     return "\n".join(lines)
@@ -331,23 +341,29 @@ def _project_required_error(tool_name: str) -> str:
     """Return a JSON error with the list of valid project names."""
     wdb = _get_workspace_db()
     project_names = sorted(e.name for e in wdb._all_indexable)
-    return json.dumps({
-        "error": f"In workspace mode, 'project' parameter is required for {tool_name}.",
-        "available_projects": project_names,
-        "hint": f"Try: {tool_name}(..., project=\"{project_names[0]}\")" if project_names else None,
-    })
+    return json.dumps(
+        {
+            "error": f"In workspace mode, 'project' parameter is required for {tool_name}.",
+            "available_projects": project_names,
+            "hint": f'Try: {tool_name}(..., project="{project_names[0]}")'
+            if project_names
+            else None,
+        }
+    )
 
 
 def _symbol_not_found_error(name: str, project: str | None = None) -> str:
     """Return a JSON error with recovery hints when a symbol lookup fails."""
     ctx = f" in {project}" if project else ""
-    return json.dumps({
-        "error": f"Symbol '{name}' not found{ctx}",
-        "suggestions": [
-            f"Try search_symbols(\"{name}\") for fuzzy keyword matching",
-            f"Try hybrid_search(\"{name}\") for keyword + semantic matching",
-        ],
-    })
+    return json.dumps(
+        {
+            "error": f"Symbol '{name}' not found{ctx}",
+            "suggestions": [
+                f'Try search_symbols("{name}") for fuzzy keyword matching',
+                f'Try hybrid_search("{name}") for keyword + semantic matching',
+            ],
+        }
+    )
 
 
 def _project_not_found_error(project: str) -> str:
@@ -419,7 +435,10 @@ def codebase_map(project: str | None = None) -> str:
 
 @mcp.tool()
 def search_symbols(
-    query: str, kind: str | None = None, project: str | None = None, limit: int = 20,
+    query: str,
+    kind: str | None = None,
+    project: str | None = None,
+    limit: int = 20,
 ) -> str:
     """Search for code symbols (functions, classes, methods, structs, etc.).
 
@@ -441,12 +460,15 @@ def search_symbols(
         results = db.search_symbols(query, kind=kind, limit=limit)
 
     if not results:
-        return json.dumps({
-            "query": query,
-            "result_count": 0,
-            "results": [],
-            "hint": f"No keyword matches. Try hybrid_search(\"{query}\") for semantic matching.",
-        }, indent=2)
+        return json.dumps(
+            {
+                "query": query,
+                "result_count": 0,
+                "results": [],
+                "hint": f'No keyword matches. Try hybrid_search("{query}") for semantic matching.',
+            },
+            indent=2,
+        )
 
     return json.dumps(results, indent=2)
 
@@ -497,10 +519,13 @@ def get_symbol(name: str, project: str | None = None) -> str:
         d["return_type"] = sym.return_type
         results.append(d)
 
-    return json.dumps({
-        "match_count": len(results),
-        "symbols": results,
-    }, indent=2)
+    return json.dumps(
+        {
+            "match_count": len(results),
+            "symbols": results,
+        },
+        indent=2,
+    )
 
 
 @mcp.tool()
@@ -542,14 +567,16 @@ def get_signature(name: str) -> str:
 
     results = []
     for sym in symbols:
-        results.append({
-            "name": sym.name,
-            "signature": sym.signature,
-            "kind": sym.kind,
-            "file": sym.file_path,
-            "line": sym.start_line,
-            "doc": sym.doc_comment,
-        })
+        results.append(
+            {
+                "name": sym.name,
+                "signature": sym.signature,
+                "kind": sym.kind,
+                "file": sym.file_path,
+                "line": sym.start_line,
+                "doc": sym.doc_comment,
+            }
+        )
 
     if len(results) == 1:
         return json.dumps(results[0], indent=2)
@@ -575,6 +602,7 @@ def symbols_in_file(path: str, project: str | None = None) -> str:
         all_results = []
         for batch in wdb._iter_batches(project_filter=project):
             from .workspace import _sanitize_schema_name
+
             for schema, project_name in batch:
                 try:
                     rows = wdb.conn.execute(
@@ -585,22 +613,28 @@ def symbols_in_file(path: str, project: str | None = None) -> str:
                            ORDER BY s.start_line""",
                         (path,),
                     ).fetchall()
-                    all_results.extend({
-                        "name": r["name"],
-                        "kind": r["kind"],
-                        "signature": r["signature"],
-                        "line": r["start_line"],
-                        "end_line": r["end_line"],
-                        "doc": r["doc_comment"][:100] if r["doc_comment"] else None,
-                    } for r in rows)
+                    all_results.extend(
+                        {
+                            "name": r["name"],
+                            "kind": r["kind"],
+                            "signature": r["signature"],
+                            "line": r["start_line"],
+                            "end_line": r["end_line"],
+                            "doc": r["doc_comment"][:100] if r["doc_comment"] else None,
+                        }
+                        for r in rows
+                    )
                 except Exception:
                     pass
-        return json.dumps({
-            "project": project,
-            "file": path,
-            "symbol_count": len(all_results),
-            "symbols": all_results,
-        }, indent=2)
+        return json.dumps(
+            {
+                "project": project,
+                "file": path,
+                "symbol_count": len(all_results),
+                "symbols": all_results,
+            },
+            indent=2,
+        )
 
     db = _get_db()
     symbols = db.symbols_in_file(path)
@@ -609,20 +643,25 @@ def symbols_in_file(path: str, project: str | None = None) -> str:
 
     result = []
     for sym in symbols:
-        result.append({
-            "name": sym.name,
-            "kind": sym.kind,
-            "signature": sym.signature,
-            "line": sym.start_line,
-            "end_line": sym.end_line,
-            "doc": sym.doc_comment[:100] if sym.doc_comment else None,
-        })
+        result.append(
+            {
+                "name": sym.name,
+                "kind": sym.kind,
+                "signature": sym.signature,
+                "line": sym.start_line,
+                "end_line": sym.end_line,
+                "doc": sym.doc_comment[:100] if sym.doc_comment else None,
+            }
+        )
 
-    return json.dumps({
-        "file": path,
-        "symbol_count": len(result),
-        "symbols": result,
-    }, indent=2)
+    return json.dumps(
+        {
+            "file": path,
+            "symbol_count": len(result),
+            "symbols": result,
+        },
+        indent=2,
+    )
 
 
 # --- Tier 2: Graph tools ---
@@ -659,11 +698,13 @@ def _dedup_edges(edges: list[dict]) -> list[dict]:
             entry["locations"] = [{"file": f, "line": l} for f, l in locations]
         result.append(entry)
 
-    result.sort(key=lambda r: (
-        0 if r["edge_type"] == "inherits" else 1,
-        -r["confidence"],
-        r["name"],
-    ))
+    result.sort(
+        key=lambda r: (
+            0 if r["edge_type"] == "inherits" else 1,
+            -r["confidence"],
+            r["name"],
+        )
+    )
     return result
 
 
@@ -683,6 +724,7 @@ def get_callers(symbol_name: str, project: str | None = None) -> str:
             return _project_required_error("graph queries (get_callers/get_callees)")
         # Use a temporary single-project Database for graph queries
         from .workspace import WorkspaceConfig
+
         config = WorkspaceConfig.load(_workspace_name)
         path = config.projects.get(project)
         if not path:
@@ -699,12 +741,15 @@ def get_callers(symbol_name: str, project: str | None = None) -> str:
         callers = db.get_callers(sym.id)
         result = _dedup_edges(callers)
         db.close()
-        return json.dumps({
-            "project": project,
-            "symbol": symbol_name,
-            "caller_count": len(result),
-            "callers": result,
-        }, indent=2)
+        return json.dumps(
+            {
+                "project": project,
+                "symbol": symbol_name,
+                "caller_count": len(result),
+                "callers": result,
+            },
+            indent=2,
+        )
 
     db = _get_db()
     sym = db.get_symbol_by_name(symbol_name)
@@ -714,11 +759,14 @@ def get_callers(symbol_name: str, project: str | None = None) -> str:
     callers = db.get_callers(sym.id)
     result = _dedup_edges(callers)
 
-    return json.dumps({
-        "symbol": symbol_name,
-        "caller_count": len(result),
-        "callers": result,
-    }, indent=2)
+    return json.dumps(
+        {
+            "symbol": symbol_name,
+            "caller_count": len(result),
+            "callers": result,
+        },
+        indent=2,
+    )
 
 
 @mcp.tool()
@@ -736,6 +784,7 @@ def get_callees(symbol_name: str, project: str | None = None) -> str:
         if not project:
             return _project_required_error("graph queries (get_callers/get_callees)")
         from .workspace import WorkspaceConfig
+
         config = WorkspaceConfig.load(_workspace_name)
         path = config.projects.get(project)
         if not path:
@@ -752,12 +801,15 @@ def get_callees(symbol_name: str, project: str | None = None) -> str:
         callees = db.get_callees(sym.id)
         result = _dedup_edges(callees)
         db.close()
-        return json.dumps({
-            "project": project,
-            "symbol": symbol_name,
-            "callee_count": len(result),
-            "callees": result,
-        }, indent=2)
+        return json.dumps(
+            {
+                "project": project,
+                "symbol": symbol_name,
+                "callee_count": len(result),
+                "callees": result,
+            },
+            indent=2,
+        )
 
     db = _get_db()
     sym = db.get_symbol_by_name(symbol_name)
@@ -767,11 +819,14 @@ def get_callees(symbol_name: str, project: str | None = None) -> str:
     callees = db.get_callees(sym.id)
     result = _dedup_edges(callees)
 
-    return json.dumps({
-        "symbol": symbol_name,
-        "callee_count": len(result),
-        "callees": result,
-    }, indent=2)
+    return json.dumps(
+        {
+            "symbol": symbol_name,
+            "callee_count": len(result),
+            "callees": result,
+        },
+        indent=2,
+    )
 
 
 @mcp.tool()
@@ -789,6 +844,7 @@ def get_type_hierarchy(name: str, project: str | None = None) -> str:
         if not project:
             return _project_required_error("get_type_hierarchy")
         from .workspace import WorkspaceConfig
+
         config = WorkspaceConfig.load(_workspace_name)
         path = config.projects.get(project)
         if not path:
@@ -805,12 +861,34 @@ def get_type_hierarchy(name: str, project: str | None = None) -> str:
         base_classes = db.get_base_classes(sym.id)
         subclasses = db.get_subclasses(sym.id)
         db.close()
-        return json.dumps({
-            "project": project,
-            "symbol": {"name": sym.name, "kind": sym.kind, "file": sym.file_path, "line": sym.start_line},
-            "base_classes": [{"name": c["symbol"].name, "kind": c["symbol"].kind, "file": c["symbol"].file_path} for c in base_classes],
-            "subclasses": [{"name": c["symbol"].name, "kind": c["symbol"].kind, "file": c["symbol"].file_path} for c in subclasses],
-        }, indent=2)
+        return json.dumps(
+            {
+                "project": project,
+                "symbol": {
+                    "name": sym.name,
+                    "kind": sym.kind,
+                    "file": sym.file_path,
+                    "line": sym.start_line,
+                },
+                "base_classes": [
+                    {
+                        "name": c["symbol"].name,
+                        "kind": c["symbol"].kind,
+                        "file": c["symbol"].file_path,
+                    }
+                    for c in base_classes
+                ],
+                "subclasses": [
+                    {
+                        "name": c["symbol"].name,
+                        "kind": c["symbol"].kind,
+                        "file": c["symbol"].file_path,
+                    }
+                    for c in subclasses
+                ],
+            },
+            indent=2,
+        )
 
     db = _get_db()
     sym = db.get_symbol_by_name(name)
@@ -865,6 +943,7 @@ def get_tests_for(symbol_name: str, project: str | None = None) -> str:
         if not project:
             return _project_required_error("this tool")
         from .workspace import WorkspaceConfig
+
         config = WorkspaceConfig.load(_workspace_name)
         path = config.projects.get(project)
         if not path:
@@ -883,19 +962,24 @@ def get_tests_for(symbol_name: str, project: str | None = None) -> str:
     results = []
     for t in tests:
         s = t["symbol"]
-        results.append({
-            "name": s.name,
-            "kind": s.kind,
-            "file": s.file_path,
-            "line": s.start_line,
-            "confidence": t["confidence"],
-        })
+        results.append(
+            {
+                "name": s.name,
+                "kind": s.kind,
+                "file": s.file_path,
+                "line": s.start_line,
+                "confidence": t["confidence"],
+            }
+        )
 
-    return json.dumps({
-        "symbol": symbol_name,
-        "test_count": len(results),
-        "tests": results,
-    }, indent=2)
+    return json.dumps(
+        {
+            "symbol": symbol_name,
+            "test_count": len(results),
+            "tests": results,
+        },
+        indent=2,
+    )
 
 
 @mcp.tool()
@@ -916,6 +1000,7 @@ def get_dependents(symbol_name: str, transitive: bool = False, project: str | No
         if not project:
             return _project_required_error("this tool")
         from .workspace import WorkspaceConfig
+
         config = WorkspaceConfig.load(_workspace_name)
         path = config.projects.get(project)
         if not path:
@@ -939,12 +1024,15 @@ def get_dependents(symbol_name: str, transitive: bool = False, project: str | No
         deps = db.get_dependents(sym.id, transitive=transitive)
 
     result = _dedup_edges(deps)
-    return json.dumps({
-        "symbol": symbol_name,
-        "transitive": transitive,
-        "dependent_count": len(result),
-        "dependents": result,
-    }, indent=2)
+    return json.dumps(
+        {
+            "symbol": symbol_name,
+            "transitive": transitive,
+            "dependent_count": len(result),
+            "dependents": result,
+        },
+        indent=2,
+    )
 
 
 @mcp.tool()
@@ -961,6 +1049,7 @@ def get_implementors(interface_name: str, project: str | None = None) -> str:
         if not project:
             return _project_required_error("get_implementors")
         from .workspace import WorkspaceConfig
+
         config = WorkspaceConfig.load(_workspace_name)
         path = config.projects.get(project)
         if not path:
@@ -993,11 +1082,14 @@ def get_implementors(interface_name: str, project: str | None = None) -> str:
         for c in impls
     ]
 
-    return json.dumps({
-        "interface": interface_name,
-        "implementor_count": len(results),
-        "implementors": results,
-    }, indent=2)
+    return json.dumps(
+        {
+            "interface": interface_name,
+            "implementor_count": len(results),
+            "implementors": results,
+        },
+        indent=2,
+    )
 
 
 @mcp.tool()
@@ -1009,11 +1101,14 @@ def index_status() -> str:
     if _is_workspace_mode():
         wdb = _get_workspace_db()
         projects = wdb.list_projects()
-        return json.dumps({
-            "mode": "workspace",
-            "workspace": _workspace_name,
-            "projects": projects,
-        }, indent=2)
+        return json.dumps(
+            {
+                "mode": "workspace",
+                "workspace": _workspace_name,
+                "projects": projects,
+            },
+            indent=2,
+        )
 
     db = _get_db()
     stats = db.stats()
@@ -1053,11 +1148,14 @@ def list_projects() -> str:
 
     wdb = _get_workspace_db()
     projects = wdb.list_projects()
-    return json.dumps({
-        "workspace": _workspace_name,
-        "project_count": len(projects),
-        "projects": projects,
-    }, indent=2)
+    return json.dumps(
+        {
+            "workspace": _workspace_name,
+            "project_count": len(projects),
+            "projects": projects,
+        },
+        indent=2,
+    )
 
 
 @mcp.tool()
@@ -1113,6 +1211,7 @@ def _resolve_repo_root(project: str | None = None) -> Path | None:
     """Resolve repo root for git operations."""
     if _is_workspace_mode() and project:
         from .workspace import WorkspaceConfig
+
         config = WorkspaceConfig.load(_workspace_name)
         path = config.projects.get(project)
         return Path(path) if path else None
@@ -1155,9 +1254,7 @@ def blame_symbol(symbol_name: str, project: str | None = None) -> str:
     if sym is None:
         return _symbol_not_found_error(symbol_name)
 
-    result = git_mod.blame_symbol(
-        repo_root, sym.file_path, sym.start_line, sym.end_line
-    )
+    result = git_mod.blame_symbol(repo_root, sym.file_path, sym.start_line, sym.end_line)
     result["symbol"] = symbol_name
     result["file"] = sym.file_path
     result["lines"] = f"{sym.start_line}-{sym.end_line}"
@@ -1167,8 +1264,10 @@ def blame_symbol(symbol_name: str, project: str | None = None) -> str:
 
 @mcp.tool()
 def recent_changes(
-    n: int = 20, author: str | None = None,
-    path_filter: str | None = None, project: str | None = None,
+    n: int = 20,
+    author: str | None = None,
+    path_filter: str | None = None,
+    project: str | None = None,
 ) -> str:
     """Get recent git commits with files changed.
 
@@ -1185,14 +1284,13 @@ def recent_changes(
     if _is_workspace_mode() and not project:
         # Show recent changes across all projects
         from .workspace import WorkspaceConfig
+
         config = WorkspaceConfig.load(_workspace_name)
         all_changes = []
         for entry in config.get_entries():
             root = Path(entry.path)
             if root.exists():
-                commits = git_mod.recent_changes(
-                    root, n=n, author=author, path_filter=path_filter
-                )
+                commits = git_mod.recent_changes(root, n=n, author=author, path_filter=path_filter)
                 for c in commits:
                     c["project"] = entry.name
                 all_changes.extend(commits)
@@ -1204,15 +1302,15 @@ def recent_changes(
     if not repo_root:
         return _project_not_found_error(project)
 
-    commits = git_mod.recent_changes(
-        repo_root, n=n, author=author, path_filter=path_filter
-    )
+    commits = git_mod.recent_changes(repo_root, n=n, author=author, path_filter=path_filter)
     return json.dumps(commits, indent=2)
 
 
 @mcp.tool()
 def git_hotspots(
-    n: int = 20, since: str | None = None, project: str | None = None,
+    n: int = 20,
+    since: str | None = None,
+    project: str | None = None,
 ) -> str:
     """Find most frequently changed files (churn hotspots / bug magnets).
 
@@ -1234,12 +1332,15 @@ def git_hotspots(
         return _project_not_found_error(project)
 
     spots = git_mod.hotspots(repo_root, n=n, since=since)
-    return json.dumps({
-        "project": project or str(repo_root),
-        "period": since or "all time",
-        "hotspot_count": len(spots),
-        "hotspots": spots,
-    }, indent=2)
+    return json.dumps(
+        {
+            "project": project or str(repo_root),
+            "period": since or "all time",
+            "hotspot_count": len(spots),
+            "hotspots": spots,
+        },
+        indent=2,
+    )
 
 
 @mcp.tool()
@@ -1257,6 +1358,7 @@ def whats_changed(project: str | None = None) -> str:
     if _is_workspace_mode() and not project:
         # Show changes across all projects
         from .workspace import WorkspaceConfig
+
         config = WorkspaceConfig.load(_workspace_name)
         all_results = {}
         for entry in config.get_entries():
@@ -1265,10 +1367,13 @@ def whats_changed(project: str | None = None) -> str:
                 changes = git_mod.whats_changed(root)
                 if changes["total_changes"] > 0:
                     all_results[entry.name] = changes
-        return json.dumps({
-            "projects_with_changes": len(all_results),
-            "projects": all_results,
-        }, indent=2)
+        return json.dumps(
+            {
+                "projects_with_changes": len(all_results),
+                "projects": all_results,
+            },
+            indent=2,
+        )
 
     repo_root = _resolve_repo_root(project)
     if not repo_root:
@@ -1316,12 +1421,15 @@ def changes_to(symbol_name: str, n: int = 20, project: str | None = None) -> str
         return _symbol_not_found_error(symbol_name)
 
     commits = git_mod.changes_to_file(repo_root, sym.file_path, n=n)
-    return json.dumps({
-        "symbol": symbol_name,
-        "file": sym.file_path,
-        "commit_count": len(commits),
-        "commits": commits,
-    }, indent=2)
+    return json.dumps(
+        {
+            "symbol": symbol_name,
+            "file": sym.file_path,
+            "commit_count": len(commits),
+            "commits": commits,
+        },
+        indent=2,
+    )
 
 
 # --- Tier 5: Build & Configuration Intelligence ---
@@ -1372,11 +1480,14 @@ def get_platform_variants(symbol_name: str, project: str | None = None) -> str:
         return _project_not_found_error(project)
 
     variants = build_mod.get_platform_variants(repo_root, symbol_name)
-    return json.dumps({
-        "symbol": symbol_name,
-        "variant_count": len(variants),
-        "variants": variants,
-    }, indent=2)
+    return json.dumps(
+        {
+            "symbol": symbol_name,
+            "variant_count": len(variants),
+            "variants": variants,
+        },
+        indent=2,
+    )
 
 
 @mcp.tool()
@@ -1410,11 +1521,14 @@ def platform_conditionals(project: str | None = None, platform: str | None = Non
         for p in c["platforms"]:
             platform_counts[p] = platform_counts.get(p, 0) + 1
 
-    return json.dumps({
-        "total": len(conditionals),
-        "platform_summary": platform_counts,
-        "conditionals": conditionals[:100],  # Cap at 100 for readability
-    }, indent=2)
+    return json.dumps(
+        {
+            "total": len(conditionals),
+            "platform_summary": platform_counts,
+            "conditionals": conditionals[:100],  # Cap at 100 for readability
+        },
+        indent=2,
+    )
 
 
 # --- Tier 6: Semantic Search (Embeddings) ---
@@ -1422,7 +1536,10 @@ def platform_conditionals(project: str | None = None, platform: str | None = Non
 
 @mcp.tool()
 def semantic_search(
-    query: str, kind: str | None = None, project: str | None = None, limit: int = 10,
+    query: str,
+    kind: str | None = None,
+    project: str | None = None,
+    limit: int = 10,
 ) -> str:
     """Find semantically similar code using embeddings.
 
@@ -1451,10 +1568,12 @@ def semantic_search(
         emb_stats = db.embedding_stats()
 
     if not emb_stats.get("model"):
-        return json.dumps({
-            "error": "No embeddings found. Run 'srclight index --embed <model>' first.",
-            "hint": "Try: srclight index --embed qwen3-embedding",
-        })
+        return json.dumps(
+            {
+                "error": "No embeddings found. Run 'srclight index --embed <model>' first.",
+                "hint": "Try: srclight index --embed qwen3-embedding",
+            }
+        )
 
     model_name = emb_stats["model"]
     dims = emb_stats["dimensions"]
@@ -1464,10 +1583,12 @@ def semantic_search(
         query_vec = provider.embed_one(query)
         query_bytes = vector_to_bytes(query_vec)
     except Exception as e:
-        return json.dumps({
-            "error": f"Failed to embed query: {e}",
-            "model": model_name,
-        })
+        return json.dumps(
+            {
+                "error": f"Failed to embed query: {e}",
+                "model": model_name,
+            }
+        )
 
     if _is_workspace_mode():
         results = wdb.vector_search(query_bytes, dims, project=project, kind=kind, limit=limit)
@@ -1475,17 +1596,23 @@ def semantic_search(
         cache = _get_vector_cache()
         results = db.vector_search(query_bytes, dims, kind=kind, limit=limit, cache=cache)
 
-    return json.dumps({
-        "query": query,
-        "model": model_name,
-        "result_count": len(results),
-        "results": results,
-    }, indent=2)
+    return json.dumps(
+        {
+            "query": query,
+            "model": model_name,
+            "result_count": len(results),
+            "results": results,
+        },
+        indent=2,
+    )
 
 
 @mcp.tool()
 def hybrid_search(
-    query: str, kind: str | None = None, project: str | None = None, limit: int = 20,
+    query: str,
+    kind: str | None = None,
+    project: str | None = None,
+    limit: int = 20,
 ) -> str:
     """Search using both keyword matching AND semantic similarity.
 
@@ -1559,7 +1686,9 @@ def hybrid_search(
             "results": final,
         }
         if not final:
-            payload["hint"] = "No results. Try broadening your query or check that the index is up to date with reindex()."
+            payload["hint"] = (
+                "No results. Try broadening your query or check that the index is up to date with reindex()."
+            )
         return json.dumps(payload, indent=2)
     else:
         payload = {
@@ -1569,7 +1698,9 @@ def hybrid_search(
             "results": fts_results[:limit],
         }
         if not fts_results:
-            payload["hint"] = "No results. Try broadening your query or check that the index is up to date with reindex()."
+            payload["hint"] = (
+                "No results. Try broadening your query or check that the index is up to date with reindex()."
+            )
         if embedding_error is not None:
             payload["embedding_error"] = embedding_error
         return json.dumps(payload, indent=2)
@@ -1615,11 +1746,14 @@ def embedding_health(project: str | None = None) -> str:
         stats = db.embedding_stats()
 
     if not stats.get("model"):
-        return json.dumps({
-            "status": "no_embeddings",
-            "detail": "No embeddings found in the index. Run 'srclight index --embed <model>' first.",
-            "stats": stats,
-        }, indent=2)
+        return json.dumps(
+            {
+                "status": "no_embeddings",
+                "detail": "No embeddings found in the index. Run 'srclight index --embed <model>' first.",
+                "stats": stats,
+            },
+            indent=2,
+        )
 
     model_name = stats["model"]
     from .embeddings import get_provider
@@ -1676,9 +1810,6 @@ IMPORT_PATTERNS: dict[str, list[str]] = {
     "cpp": [r'#include\s*[<"]([^>"]+)[>"]'],
     "go": [r'"([^"]+)"'],
     "java": [r"^import\s+([\w.]+);"],
-    "kotlin": [r"^import\s+([\w.]+)"],
-    "dart": [r"import\s+['\"]([^'\"]+)['\"]"],
-    "swift": [r"^import\s+(\w+)"],
     "csharp": [r"^using\s+([\w.]+);"],
     "php": [
         r"^use\s+([\w\\]+)",
@@ -1718,27 +1849,33 @@ def _extract_imports(content: str, language: str) -> list[dict]:
                     import_names = m.group(2)
                     if from_module:
                         names = [n.strip() for n in import_names.split(",") if n.strip()]
-                        imports.append({
-                            "statement": statement,
-                            "module": from_module,
-                            "names": names,
-                        })
+                        imports.append(
+                            {
+                                "statement": statement,
+                                "module": from_module,
+                                "names": names,
+                            }
+                        )
                     else:
                         for name in import_names.split(","):
                             name = name.strip().split(" as ")[0].strip()
                             if name:
-                                imports.append({
-                                    "statement": statement,
-                                    "module": name,
-                                    "names": [],
-                                })
+                                imports.append(
+                                    {
+                                        "statement": statement,
+                                        "module": name,
+                                        "names": [],
+                                    }
+                                )
                 else:
                     module = groups[0]
-                    imports.append({
-                        "statement": statement,
-                        "module": module,
-                        "names": [],
-                    })
+                    imports.append(
+                        {
+                            "statement": statement,
+                            "module": module,
+                            "names": [],
+                        }
+                    )
 
     return imports
 
@@ -1785,14 +1922,17 @@ def find_imports(path: str, project: str | None = None) -> str:
 
         language = file_info["language"]
         if not language or language not in IMPORT_PATTERNS:
-            return json.dumps({
-                "file": path,
-                "language": language,
-                "import_count": 0,
-                "resolved_count": 0,
-                "imports": [],
-                "note": f"Import extraction not supported for language: {language}",
-            }, indent=2)
+            return json.dumps(
+                {
+                    "file": path,
+                    "language": language,
+                    "import_count": 0,
+                    "resolved_count": 0,
+                    "imports": [],
+                    "note": f"Import extraction not supported for language: {language}",
+                },
+                indent=2,
+            )
 
         # Read file content from disk
         config_entries = [e for e in wdb._all_indexable if e.name == project]
@@ -1856,13 +1996,16 @@ def find_imports(path: str, project: str | None = None) -> str:
 
             imports.append(entry)
 
-        return json.dumps({
-            "file": path,
-            "language": language,
-            "import_count": len(imports),
-            "resolved_count": resolved_count,
-            "imports": imports,
-        }, indent=2)
+        return json.dumps(
+            {
+                "file": path,
+                "language": language,
+                "import_count": len(imports),
+                "resolved_count": resolved_count,
+                "imports": imports,
+            },
+            indent=2,
+        )
 
     # Single-repo mode
     db = _get_db()
@@ -1872,14 +2015,17 @@ def find_imports(path: str, project: str | None = None) -> str:
 
     language = file_rec.language
     if not language or language not in IMPORT_PATTERNS:
-        return json.dumps({
-            "file": path,
-            "language": language,
-            "import_count": 0,
-            "resolved_count": 0,
-            "imports": [],
-            "note": f"Import extraction not supported for language: {language}",
-        }, indent=2)
+        return json.dumps(
+            {
+                "file": path,
+                "language": language,
+                "import_count": 0,
+                "resolved_count": 0,
+                "imports": [],
+                "note": f"Import extraction not supported for language: {language}",
+            },
+            indent=2,
+        )
 
     if _repo_root:
         file_path = _repo_root / path
@@ -1920,13 +2066,16 @@ def find_imports(path: str, project: str | None = None) -> str:
 
         imports.append(entry)
 
-    return json.dumps({
-        "file": path,
-        "language": language,
-        "import_count": len(imports),
-        "resolved_count": resolved_count,
-        "imports": imports,
-    }, indent=2)
+    return json.dumps(
+        {
+            "file": path,
+            "language": language,
+            "import_count": len(imports),
+            "resolved_count": resolved_count,
+            "imports": imports,
+        },
+        indent=2,
+    )
 
 
 # --- Tier 8: Code Analysis ---
@@ -1951,6 +2100,7 @@ def find_dead_code(project: str | None = None, kind: str | None = None) -> str:
         if not project:
             return _project_required_error("find_dead_code")
         from .workspace import WorkspaceConfig
+
         config = WorkspaceConfig.load(_workspace_name)
         path = config.projects.get(project)
         if not path:
@@ -1988,7 +2138,9 @@ def find_dead_code(project: str | None = None, kind: str | None = None) -> str:
     if kind:
         result["kind_filter"] = kind
     if not dead:
-        result["hint"] = "No unreferenced symbols found. This may mean the codebase is well-connected, or edges haven't been indexed yet."
+        result["hint"] = (
+            "No unreferenced symbols found. This may mean the codebase is well-connected, or edges haven't been indexed yet."
+        )
 
     return json.dumps(result, indent=2)
 
@@ -2039,6 +2191,7 @@ def find_pattern(
         if not project:
             return _project_required_error("find_pattern")
         from .workspace import WorkspaceConfig
+
         config = WorkspaceConfig.load(_workspace_name)
         path = config.projects.get(project)
         if not path:
@@ -2073,7 +2226,9 @@ def find_pattern(
     if kind:
         result["kind_filter"] = kind
     if not matches:
-        result["hint"] = "No matches found. Try a broader pattern or check that symbols have been indexed."
+        result["hint"] = (
+            "No matches found. Try a broader pattern or check that symbols have been indexed."
+        )
 
     return json.dumps(result, indent=2)
 
@@ -2105,12 +2260,15 @@ async def server_stats() -> str:
     now = time.time()
     uptime = now - _server_start_time
     started_at = datetime.fromtimestamp(_server_start_time, tz=timezone.utc)
-    return json.dumps({
-        "started_at": started_at.isoformat(),
-        "started_at_epoch": _server_start_time,
-        "uptime_seconds": round(uptime, 2),
-        "uptime_human": f"{int(uptime)}s",
-    }, indent=2)
+    return json.dumps(
+        {
+            "started_at": started_at.isoformat(),
+            "started_at_epoch": _server_start_time,
+            "uptime_seconds": round(uptime, 2),
+            "uptime_human": f"{int(uptime)}s",
+        },
+        indent=2,
+    )
 
 
 @mcp.tool()
@@ -2123,20 +2281,26 @@ async def restart_server() -> str:
     """
     allow = os.environ.get("SRCLIGHT_ALLOW_RESTART", "1").strip().lower()
     if allow in ("0", "false", "no"):
-        return json.dumps({
-            "ok": False,
-            "message": "Restart is disabled (SRCLIGHT_ALLOW_RESTART=0). Remove it or set to 1 to allow.",
-            "hint": "Example: srclight serve --workspace NAME --transport sse --port 8742",
-        }, indent=2)
+        return json.dumps(
+            {
+                "ok": False,
+                "message": "Restart is disabled (SRCLIGHT_ALLOW_RESTART=0). Remove it or set to 1 to allow.",
+                "hint": "Example: srclight serve --workspace NAME --transport sse --port 8742",
+            },
+            indent=2,
+        )
 
     def _exit():
         os._exit(0)
 
     asyncio.get_running_loop().call_later(0, _exit)
-    return json.dumps({
-        "ok": True,
-        "message": "Server will exit now. Reconnect after your process manager restarts it.",
-    }, indent=2)
+    return json.dumps(
+        {
+            "ok": True,
+            "message": "Server will exit now. Reconnect after your process manager restarts it.",
+        },
+        indent=2,
+    )
 
 
 @mcp.tool()
@@ -2145,48 +2309,51 @@ async def setup_guide() -> str:
     Returns: how to add a workspace, connect Cursor, where config lives, how to index with embeddings, hook install."""
     from .workspace import WORKSPACES_DIR
 
-    return json.dumps({
-        "title": "Srclight setup guide for agents",
-        "config_location": {
-            "workspaces_dir": str(WORKSPACES_DIR),
-            "description": "Workspace configs are JSON files: ~/.srclight/workspaces/{name}.json",
+    return json.dumps(
+        {
+            "title": "Srclight setup guide for agents",
+            "config_location": {
+                "workspaces_dir": str(WORKSPACES_DIR),
+                "description": "Workspace configs are JSON files: ~/.srclight/workspaces/{name}.json",
+            },
+            "steps": [
+                {
+                    "step": 1,
+                    "title": "Create or use a workspace",
+                    "commands": [
+                        "srclight workspace init WORKSPACE_NAME",
+                        "srclight workspace add /path/to/repo -w WORKSPACE_NAME",
+                    ],
+                },
+                {
+                    "step": 2,
+                    "title": "Index the workspace (optionally with embeddings)",
+                    "commands": [
+                        "srclight workspace index -w WORKSPACE_NAME",
+                        "srclight workspace index -w WORKSPACE_NAME --embed qwen3-embedding",
+                    ],
+                    "notes": "Ollama on localhost:11434 for qwen3-embedding. Server hot-reloads; no restart needed after indexing.",
+                },
+                {
+                    "step": 3,
+                    "title": "Install git hooks (optional, for auto-reindex)",
+                    "commands": ["srclight hook install --workspace WORKSPACE_NAME"],
+                },
+                {
+                    "step": 4,
+                    "title": "Start the MCP server and connect Cursor",
+                    "commands": [
+                        "srclight serve --workspace WORKSPACE_NAME",
+                        "# Or with web dashboard: srclight serve --workspace WORKSPACE_NAME --web",
+                    ],
+                    "notes": "Server binds to 127.0.0.1:8742. In Cursor MCP config use URL http://127.0.0.1:8742 (Streamable HTTP /mcp or SSE /sse). Start server before opening Cursor.",
+                },
+            ],
+            "for_agents": "Call codebase_map() at session start. Use list_projects() to see repos. Use setup_guide() to get these steps for the user.",
+            "after_upgrade": "After upgrading srclight (pip install -U srclight), restart the server and then restart your editor/CLI to pick up new tools. Existing MCP sessions only discover tools at connect time.",
         },
-        "steps": [
-            {
-                "step": 1,
-                "title": "Create or use a workspace",
-                "commands": [
-                    "srclight workspace init WORKSPACE_NAME",
-                    "srclight workspace add /path/to/repo -w WORKSPACE_NAME",
-                ],
-            },
-            {
-                "step": 2,
-                "title": "Index the workspace (optionally with embeddings)",
-                "commands": [
-                    "srclight workspace index -w WORKSPACE_NAME",
-                    "srclight workspace index -w WORKSPACE_NAME --embed qwen3-embedding",
-                ],
-                "notes": "Ollama on localhost:11434 for qwen3-embedding. Server hot-reloads; no restart needed after indexing.",
-            },
-            {
-                "step": 3,
-                "title": "Install git hooks (optional, for auto-reindex)",
-                "commands": ["srclight hook install --workspace WORKSPACE_NAME"],
-            },
-            {
-                "step": 4,
-                "title": "Start the MCP server and connect Cursor",
-                "commands": [
-                    "srclight serve --workspace WORKSPACE_NAME",
-                    "# Or with web dashboard: srclight serve --workspace WORKSPACE_NAME --web",
-                ],
-                "notes": "Server binds to 127.0.0.1:8742. In Cursor MCP config use URL http://127.0.0.1:8742 (Streamable HTTP /mcp or SSE /sse). Start server before opening Cursor.",
-            },
-        ],
-        "for_agents": "Call codebase_map() at session start. Use list_projects() to see repos. Use setup_guide() to get these steps for the user.",
-        "after_upgrade": "After upgrading srclight (pip install -U srclight), restart the server and then restart your editor/CLI to pick up new tools. Existing MCP sessions only discover tools at connect time.",
-    }, indent=2)
+        indent=2,
+    )
 
 
 def make_sse_and_streamable_http_app(mount_path: str | None = "/"):
