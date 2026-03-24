@@ -1,6 +1,7 @@
 """Tests for git hook install/uninstall."""
 
 import os
+import shlex
 import stat
 from pathlib import Path
 
@@ -10,6 +11,7 @@ from srclight.cli import (
     _HOOK_MARKER_END,
     _HOOK_MARKER_START,
     _install_hooks_in_repo,
+    _srclight_bin,
     _uninstall_hooks_in_repo,
 )
 
@@ -142,3 +144,14 @@ def test_hooks_use_flock(fake_repo):
     for name in ("post-commit", "post-checkout"):
         content = (fake_repo / ".git" / "hooks" / name).read_text()
         assert "flock -n" in content, f"{name} hook missing 'flock -n'"
+
+
+def test_srclight_bin_falls_back_to_python_module(monkeypatch, tmp_path):
+    fake_python = tmp_path / "venv" / "bin" / "python3"
+    fake_python.parent.mkdir(parents=True)
+    fake_python.write_text("")
+
+    monkeypatch.setattr("srclight.cli.sys.executable", str(fake_python))
+    monkeypatch.setattr("shutil.which", lambda name: None)
+
+    assert _srclight_bin() == f"{shlex.quote(str(fake_python))} -m srclight"

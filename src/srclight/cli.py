@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import json
 import logging
+import shlex
 import sys
 from pathlib import Path
 
@@ -545,39 +546,37 @@ _HOOK_NAMES = ["post-commit", "post-checkout"]
 
 
 def _srclight_bin() -> str:
-    """Find the srclight binary path."""
+    """Find a shell-safe srclight invocation command."""
     import shutil
 
     # Prefer the bin next to sys.executable (same venv)
     venv_bin = Path(sys.executable).parent / "srclight"
     if venv_bin.exists():
-        return str(venv_bin)
+        return shlex.quote(str(venv_bin))
     found = shutil.which("srclight")
     if found:
-        return found
+        return shlex.quote(found)
     # Fallback: invoke via python -m
-    return f"{sys.executable} -m srclight.cli"
+    return f"{shlex.quote(sys.executable)} -m srclight"
 
 
-def _post_commit_snippet(srclight_path: str) -> str:
+def _post_commit_snippet(srclight_cmd: str) -> str:
     """Hook snippet for post-commit: reindex after every commit."""
     return f"""{_HOOK_MARKER_START}
 # Auto-reindex after commit (installed by srclight hook install)
-if [ -x "{srclight_path}" ]; then
-    (
-        cd "$(git rev-parse --show-toplevel)" && \\
-        mkdir -p .srclight && \\
-        flock -n .srclight/reindex.lock \\
-            "{srclight_path}" index . \\
-            >> .srclight/reindex.log 2>&1
-    ) &
-    disown 2>/dev/null
-fi
+(
+    cd "$(git rev-parse --show-toplevel)" && \\
+    mkdir -p .srclight && \\
+    flock -n .srclight/reindex.lock \\
+        {srclight_cmd} index . \\
+        >> .srclight/reindex.log 2>&1
+) &
+disown 2>/dev/null
 exit 0
 {_HOOK_MARKER_END}"""
 
 
-def _post_checkout_snippet(srclight_path: str) -> str:
+def _post_checkout_snippet(srclight_cmd: str) -> str:
     """Hook snippet for post-checkout: reindex on branch switch.
 
     post-checkout receives: $1=prev_HEAD $2=new_HEAD $3=is_branch_checkout
@@ -586,12 +585,12 @@ def _post_checkout_snippet(srclight_path: str) -> str:
     return f"""{_HOOK_MARKER_START}
 # Auto-reindex on branch switch (installed by srclight hook install)
 # $1=prev_HEAD $2=new_HEAD $3=1 if branch checkout
-if [ "$3" = "1" ] && [ "$1" != "$2" ] && [ -x "{srclight_path}" ]; then
+if [ "$3" = "1" ] && [ "$1" != "$2" ]; then
     (
         cd "$(git rev-parse --show-toplevel)" && \\
         mkdir -p .srclight && \\
         flock -n .srclight/reindex.lock \\
-            "{srclight_path}" index . \\
+            {srclight_cmd} index . \\
             >> .srclight/reindex.log 2>&1
     ) &
     disown 2>/dev/null
