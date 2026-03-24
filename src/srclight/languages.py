@@ -301,6 +301,30 @@ _PHP_QUERY = """
 """
 
 
+_SQL_QUERY = """
+(create_table (object_reference) @table.name) @table.def
+
+(create_view (object_reference) @view.name) @view.def
+
+(create_materialized_view (object_reference) @matview.name) @matview.def
+
+(create_function (object_reference) @fn.name) @fn.def
+
+(create_trigger
+  (keyword_trigger)
+  .
+  (object_reference) @trigger.name) @trigger.def
+
+(create_index (identifier) @idx.name) @idx.def
+
+(create_schema (identifier) @schema.name) @schema.def
+
+(create_type (object_reference) @type.name) @type.def
+
+(create_sequence (object_reference) @seq.name) @seq.def
+"""
+
+
 LANGUAGES: dict[str, LanguageConfig] = {
     "python": LanguageConfig(
         name="python",
@@ -367,6 +391,12 @@ LANGUAGES: dict[str, LanguageConfig] = {
         extensions=(".php",),
         loader="tree_sitter_php",
         symbol_query=_PHP_QUERY,
+    ),
+    "sql": LanguageConfig(
+        name="sql",
+        extensions=(".sql", ".tsql", ".pgsql", ".psql", ".ddl", ".dml"),
+        loader="tree_sitter_sql",
+        symbol_query=_SQL_QUERY,
     ),
 }
 

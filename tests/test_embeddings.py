@@ -290,9 +290,11 @@ def test_get_provider_cohere_no_key():
             get_provider("cohere:embed-v4.0")
 
 
-def test_get_provider_unknown():
-    with pytest.raises(ValueError, match="Unknown embedding provider"):
-        get_provider("unknown:model")
+def test_get_provider_unknown_prefix_defaults_to_ollama():
+    """Unknown prefix with colon falls through to Ollama (could be a tagged model)."""
+    provider = get_provider("unknown:model")
+    assert isinstance(provider, OllamaProvider)
+    assert provider.name == "ollama:unknown:model"
 
 
 def test_ollama_is_available_with_exact_tag():
