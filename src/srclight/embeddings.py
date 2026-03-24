@@ -105,8 +105,10 @@ class EmbeddingProvider(ABC):
 class OllamaProvider(EmbeddingProvider):
     """Embed via Ollama's HTTP API (local, zero Python ML deps).
 
-    Default model: qwen3-embedding (best quality available locally).
-    Fallback: nomic-embed-text (lighter, well-tested).
+    Good local options:
+    - embeddinggemma        -> small, fast modern default
+    - qwen3-embedding:0.6b  -> newer compact higher-quality option
+    - qwen3-embedding       -> best local quality, heaviest default Ollama tag
 
     Ollama endpoint: http://localhost:11434 (accessible from WSL to Windows Ollama).
     """

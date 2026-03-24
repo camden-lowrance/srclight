@@ -32,7 +32,10 @@ pip install srclight
 # From source
 git clone https://github.com/srclight/srclight.git
 cd srclight
-pip install -e .
+python -m pip install -e .
+
+# If the shell does not see the console script yet
+python -m srclight --help
 ```
 
 ### 2. Add as MCP Server
@@ -200,13 +203,13 @@ After major refactors, new branches with many new files, or initial setup:
 ```bash
 # Re-embed a single project
 cd /path/to/repo
-srclight index --embed qwen3-embedding
+srclight index --embed embeddinggemma
 
 # Re-embed all projects in workspace
-srclight workspace index -w myworkspace --embed qwen3-embedding
+srclight workspace index -w myworkspace --embed embeddinggemma
 
 # Re-embed just one project via workspace command
-srclight workspace index -w myworkspace -p project-name --embed qwen3-embedding
+srclight workspace index -w myworkspace -p project-name --embed embeddinggemma
 ```
 
 Embedding is incremental — only symbols whose `body_hash` changed get re-embedded. The `.npy` sidecar is rebuilt automatically after embedding.
@@ -292,7 +295,7 @@ python -c "import pdf2image; print('pdf2image OK')"
 # 4. Re-index the project to pick up scanned PDFs
 srclight index
 # Or with embeddings:
-srclight index --embed qwen3-embedding
+srclight index --embed embeddinggemma
 ```
 
 #### GPU Acceleration for PaddleOCR
@@ -335,7 +338,7 @@ srclight workspace add /path/to/new-repo -w myworkspace
 srclight workspace add /path/to/new-repo -w myworkspace -n custom-name  # optional custom name
 
 # 2. Index with embeddings
-srclight workspace index -w myworkspace -p new-repo --embed qwen3-embedding
+srclight workspace index -w myworkspace -p new-repo --embed embeddinggemma
 
 # 3. Install git hooks
 cd /path/to/new-repo
@@ -363,7 +366,7 @@ git clone git@github.com:your-org/some-lib.git /path/to/some-lib
 
 # Add and index it
 srclight workspace add /path/to/some-lib -w myworkspace
-srclight workspace index -w myworkspace -p some-lib --embed qwen3-embedding
+srclight workspace index -w myworkspace -p some-lib --embed embeddinggemma
 srclight hook install --workspace myworkspace
 ```
 
@@ -441,7 +444,7 @@ Then start Cursor (or start srclight with that env in its process).
 ```bash
 # Check embedding status via CLI
 cd /path/to/repo
-srclight index --embed qwen3-embedding
+srclight index --embed embeddinggemma
 
 # Or ask the agent: "What's the embedding status?"
 # → calls embedding_status() tool
@@ -468,7 +471,7 @@ If a repo changes location on disk, update the workspace:
 ```bash
 srclight workspace remove old-name -w myworkspace
 srclight workspace add /new/path/to/repo -w myworkspace
-srclight workspace index -w myworkspace -p new-name --embed qwen3-embedding
+srclight workspace index -w myworkspace -p new-name --embed embeddinggemma
 ```
 
 ## Claude Code Custom Agents (Subagents)

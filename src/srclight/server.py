@@ -75,7 +75,7 @@ Srclight indexes non-code files (PDF, DOCX, XLSX, HTML, CSV, email, images, text
 To index a new repo and add it to the workspace, run these shell commands:
 ```
 srclight workspace add /path/to/repo -w WORKSPACE_NAME
-srclight workspace index -w WORKSPACE_NAME -p PROJECT_NAME --embed qwen3-embedding
+srclight workspace index -w WORKSPACE_NAME -p PROJECT_NAME --embed embeddinggemma
 srclight hook install --workspace WORKSPACE_NAME
 ```
 The server picks up new projects automatically (no restart needed).
@@ -1571,7 +1571,7 @@ def semantic_search(
         return json.dumps(
             {
                 "error": "No embeddings found. Run 'srclight index --embed <model>' first.",
-                "hint": "Try: srclight index --embed qwen3-embedding",
+                "hint": "Try: srclight index --embed embeddinggemma",
             }
         )
 
@@ -2330,9 +2330,9 @@ async def setup_guide() -> str:
                     "title": "Index the workspace (optionally with embeddings)",
                     "commands": [
                         "srclight workspace index -w WORKSPACE_NAME",
-                        "srclight workspace index -w WORKSPACE_NAME --embed qwen3-embedding",
+                        "srclight workspace index -w WORKSPACE_NAME --embed embeddinggemma",
                     ],
-                    "notes": "Ollama on localhost:11434 for qwen3-embedding. Server hot-reloads; no restart needed after indexing.",
+                    "notes": "Ollama on localhost:11434 for embeddinggemma. Switch to qwen3-embedding for heavier, higher-quality local retrieval. Server hot-reloads; no restart needed after indexing.",
                 },
                 {
                     "step": 3,

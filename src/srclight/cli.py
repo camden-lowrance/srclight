@@ -85,7 +85,7 @@ def main(verbose: bool):
     "embed_model",
     type=str,
     default=None,
-    help="Embedding model (e.g., qwen3-embedding, voyage-code-3)",
+    help="Embedding model (e.g., embeddinggemma, qwen3-embedding:0.6b, voyage-code-3)",
 )
 def index(path: str, db_path: str | None, embed_model: str | None):
     """Index a codebase for AI-powered search."""
@@ -383,7 +383,7 @@ def workspace_remove(project_name: str, ws_name: str):
     "embed_model",
     type=str,
     default=None,
-    help="Embedding model (e.g., qwen3-embedding, voyage-code-3)",
+    help="Embedding model (e.g., embeddinggemma, qwen3-embedding:0.6b, voyage-code-3)",
 )
 def workspace_index(ws_name: str, project: str | None, embed_model: str | None):
     """Index all (or one) project in a workspace."""
