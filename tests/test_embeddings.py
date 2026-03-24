@@ -1,5 +1,6 @@
 """Tests for embedding providers, vector search, and hybrid RRF."""
 
+import json
 import struct
 from unittest.mock import patch
 
@@ -68,6 +69,22 @@ class MockProvider(EmbeddingProvider):
                 vec = [x / norm for x in vec]
             results.append(vec)
         return results
+
+
+class MockHTTPResponse:
+    """Minimal context-manager HTTP response for urllib mocks."""
+
+    def __init__(self, payload: dict):
+        self._payload = payload
+
+    def read(self) -> bytes:
+        return json.dumps(self._payload).encode()
+
+    def __enter__(self) -> "MockHTTPResponse":
+        return self
+
+    def __exit__(self, exc_type, exc, tb) -> bool:
+        return False
 
 
 # --- Test prepare_embedding_text ---
@@ -199,6 +216,12 @@ def test_get_provider_ollama_explicit():
     assert "nomic-embed-text" in provider.name
 
 
+def test_get_provider_ollama_tagged_model():
+    provider = get_provider("qwen3-embedding:0.6b")
+    assert isinstance(provider, OllamaProvider)
+    assert provider.name == "ollama:qwen3-embedding:0.6b"
+
+
 def test_get_provider_voyage():
     with patch.dict("os.environ", {"VOYAGE_API_KEY": "test-key"}):
         provider = get_provider("voyage-code-3")
@@ -270,6 +293,26 @@ def test_get_provider_cohere_no_key():
 def test_get_provider_unknown():
     with pytest.raises(ValueError, match="Unknown embedding provider"):
         get_provider("unknown:model")
+
+
+def test_ollama_is_available_with_exact_tag():
+    provider = OllamaProvider(model="qwen3-embedding:0.6b")
+    payload = {"models": [{"name": "qwen3-embedding:0.6b"}]}
+
+    with patch(
+        "srclight.embeddings.urllib.request.urlopen", return_value=MockHTTPResponse(payload)
+    ):
+        assert provider.is_available() is True
+
+
+def test_ollama_is_available_with_latest_tag_for_base_model():
+    provider = OllamaProvider(model="embeddinggemma")
+    payload = {"models": [{"name": "embeddinggemma:latest"}]}
+
+    with patch(
+        "srclight.embeddings.urllib.request.urlopen", return_value=MockHTTPResponse(payload)
+    ):
+        assert provider.is_available() is True
 
 
 # --- Test embed_symbols ---

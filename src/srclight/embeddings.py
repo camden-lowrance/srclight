@@ -26,6 +26,8 @@ from typing import Any
 
 logger = logging.getLogger("srclight.embeddings")
 
+_PROVIDER_TYPES = {"ollama", "openai", "cohere", "voyage"}
+
 
 # Timeout for embedding API requests (MCP tool path). Kept short so Cursor/IDE
 # tool calls don't hang; indexing can set SRCLIGHT_EMBED_REQUEST_TIMEOUT=120.
@@ -169,8 +171,16 @@ class OllamaProvider(EmbeddingProvider):
             req = urllib.request.Request(url, method="GET")
             with urllib.request.urlopen(req, timeout=5) as resp:
                 data = json.loads(resp.read())
-            models = [m.get("name", "").split(":")[0] for m in data.get("models", [])]
-            return self._model in models or f"{self._model}:latest" in models
+            model_names = [m.get("name", "") for m in data.get("models", [])]
+            base_names = {name.split(":", 1)[0] for name in model_names}
+
+            if self._model in model_names:
+                return True
+            if self._model.endswith(":latest"):
+                return self._model.removesuffix(":latest") in base_names
+            if ":" not in self._model:
+                return self._model in base_names or f"{self._model}:latest" in model_names
+            return False
         except Exception:
             return False
 
@@ -535,6 +545,7 @@ def get_provider(model: str, **kwargs) -> EmbeddingProvider:
 
     Formats:
         "ollama:qwen3-embedding" or "qwen3-embedding" -> OllamaProvider
+        "qwen3-embedding:0.6b" or "embeddinggemma:300m" -> OllamaProvider
         "openai:text-embedding-3-small" -> OpenAIProvider
         "cohere:embed-v4.0" or "embed-v4.0" -> CohereProvider
         "voyage:voyage-code-3" or "voyage-code-3" -> VoyageProvider
@@ -542,22 +553,25 @@ def get_provider(model: str, **kwargs) -> EmbeddingProvider:
     OpenAI-compatible providers (Together, Fireworks, Mistral, vLLM, etc.)
     use the "openai:" prefix with OPENAI_BASE_URL env var to set the endpoint.
     """
+    provider_type: str | None = None
+    model_name = model
+
     if ":" in model:
-        provider_type, model_name = model.split(":", 1)
-    else:
+        maybe_provider, remainder = model.split(":", 1)
+        if maybe_provider in _PROVIDER_TYPES:
+            provider_type = maybe_provider
+            model_name = remainder
+
+    if provider_type is None:
         # Default: infer provider from model name prefix
-        if model.startswith("voyage"):
+        if model_name.startswith("voyage"):
             provider_type = "voyage"
-            model_name = model
-        elif model.startswith("embed-") and ("v3" in model or "v4" in model):
+        elif model_name.startswith("embed-") and ("v3" in model_name or "v4" in model_name):
             provider_type = "cohere"
-            model_name = model
-        elif model.startswith("text-embedding"):
+        elif model_name.startswith("text-embedding"):
             provider_type = "openai"
-            model_name = model
         else:
             provider_type = "ollama"
-            model_name = model
 
     if provider_type == "ollama":
         base_url = kwargs.get("base_url", "http://localhost:11434")
