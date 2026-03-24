@@ -77,9 +77,16 @@ def main(verbose: bool):
 
 @main.command()
 @click.argument("path", default=".", type=click.Path(exists=True))
-@click.option("--db", "db_path", type=click.Path(), help="Database path (default: .srclight/index.db)")
-@click.option("--embed", "embed_model", type=str, default=None,
-              help="Embedding model (e.g., qwen3-embedding, voyage-code-3)")
+@click.option(
+    "--db", "db_path", type=click.Path(), help="Database path (default: .srclight/index.db)"
+)
+@click.option(
+    "--embed",
+    "embed_model",
+    type=str,
+    default=None,
+    help="Embedding model (e.g., qwen3-embedding, voyage-code-3)",
+)
 def index(path: str, db_path: str | None, embed_model: str | None):
     """Index a codebase for AI-powered search."""
     from .db import Database
@@ -132,8 +139,10 @@ def index(path: str, db_path: str | None, embed_model: str | None):
 
     if embed_model:
         emb_stats = db.embedding_stats()
-        click.echo(f"  Embeddings:      {emb_stats['embedded_symbols']}/{emb_stats['total_symbols']}"
-                    f" ({emb_stats['coverage_pct']}%)")
+        click.echo(
+            f"  Embeddings:      {emb_stats['embedded_symbols']}/{emb_stats['total_symbols']}"
+            f" ({emb_stats['coverage_pct']}%)"
+        )
 
     db.close()
 
@@ -168,7 +177,7 @@ def search(query: str, kind: str | None, limit: int, db_path: str | None, json_o
         else:
             click.echo(f"Found {len(results)} results for '{query}':\n")
             for r in results:
-                source_tag = f"[{r['source']}]" if r.get('source') else ""
+                source_tag = f"[{r['source']}]" if r.get("source") else ""
                 click.echo(f"  {r['kind']:<12} {r['name']:<30} {r['file']}  {source_tag}")
                 if r.get("snippet"):
                     snippet = r["snippet"].replace("\n", " ")[:100]
@@ -256,7 +265,13 @@ def status(db_path: str | None):
 @main.command()
 @click.option("--db", "db_path", type=click.Path(), help="Database path")
 @click.option("--workspace", "-w", "workspace_name", help="Workspace name (multi-repo mode)")
-@click.option("--transport", "-t", type=click.Choice(["stdio", "sse"]), default="sse", help="Transport (stdio or sse, default: sse)")
+@click.option(
+    "--transport",
+    "-t",
+    type=click.Choice(["stdio", "sse"]),
+    default="sse",
+    help="Transport (stdio or sse, default: sse)",
+)
 @click.option("--port", "-p", default=8742, help="Port for SSE transport (default: 8742)")
 @click.option("--web", is_flag=True, help="Serve dashboard and REST API at / and /api/* (SSE only)")
 def serve(db_path: str | None, workspace_name: str | None, transport: str, port: int, web: bool):
@@ -278,15 +293,18 @@ def serve(db_path: str | None, workspace_name: str | None, transport: str, port:
         import anyio
         import time
         from . import server as server_mod
+
         if server_mod._server_start_time is None:
             server_mod._server_start_time = time.time()
         from .server import make_sse_and_streamable_http_app
         from .web import add_web_routes
+
         app = make_sse_and_streamable_http_app(mount_path="/")
         add_web_routes(app)
         server_mod.mcp.settings.host = "127.0.0.1"
         server_mod.mcp.settings.port = port
         import uvicorn
+
         log_level = getattr(server_mod.mcp.settings, "log_level", "info")
         if isinstance(log_level, str):
             log_level = log_level.lower()
@@ -360,8 +378,13 @@ def workspace_remove(project_name: str, ws_name: str):
 @workspace.command("index")
 @click.option("--workspace", "-w", "ws_name", required=True, help="Workspace to index")
 @click.option("--project", "-p", help="Index only this project (default: all)")
-@click.option("--embed", "embed_model", type=str, default=None,
-              help="Embedding model (e.g., qwen3-embedding, voyage-code-3)")
+@click.option(
+    "--embed",
+    "embed_model",
+    type=str,
+    default=None,
+    help="Embedding model (e.g., qwen3-embedding, voyage-code-3)",
+)
 def workspace_index(ws_name: str, project: str | None, embed_model: str | None):
     """Index all (or one) project in a workspace."""
     from .db import Database
@@ -406,8 +429,10 @@ def workspace_index(ws_name: str, project: str | None, embed_model: str | None):
             stats = indexer.index(root, on_progress=on_progress)
             click.echo()  # newline after progress
 
-            click.echo(f"    {stats.files_scanned} files, {stats.symbols_extracted} symbols, "
-                        f"{stats.files_unchanged} unchanged, {stats.elapsed_seconds:.1f}s")
+            click.echo(
+                f"    {stats.files_scanned} files, {stats.symbols_extracted} symbols, "
+                f"{stats.files_unchanged} unchanged, {stats.elapsed_seconds:.1f}s"
+            )
 
             db_stats = db.stats()
             click.echo(f"    DB: {db_stats['db_size_mb']} MB")
@@ -438,14 +463,18 @@ def workspace_status(ws_name: str):
                 click.echo(f"  {p['project']:<20} ERROR: {p['error']}")
                 continue
             langs = ", ".join(f"{l}:{n}" for l, n in p.get("languages", {}).items())
-            click.echo(f"  {p['project']:<20} {p['files']:>5} files  {p['symbols']:>6} symbols  "
-                        f"{p['db_size_mb']:>5.1f} MB  [{langs}]")
+            click.echo(
+                f"  {p['project']:<20} {p['files']:>5} files  {p['symbols']:>6} symbols  "
+                f"{p['db_size_mb']:>5.1f} MB  [{langs}]"
+            )
 
         stats = wdb.codebase_map()
-        click.echo(f"\n  Total: {stats['totals']['files']} files, "
-                    f"{stats['totals']['symbols']} symbols, "
-                    f"{stats['totals']['edges']} edges across "
-                    f"{stats['projects_attached']} projects")
+        click.echo(
+            f"\n  Total: {stats['totals']['files']} files, "
+            f"{stats['totals']['symbols']} symbols, "
+            f"{stats['totals']['edges']} edges across "
+            f"{stats['projects_attached']} projects"
+        )
 
 
 @workspace.command("list")
@@ -469,8 +498,9 @@ def workspace_list():
 @click.option("--project", "-p", help="Filter by project name")
 @click.option("--limit", "-n", default=20, help="Max results")
 @click.option("--json-output", "-j", is_flag=True, help="Output as JSON")
-def workspace_search(query: str, ws_name: str, kind: str | None, project: str | None,
-                     limit: int, json_output: bool):
+def workspace_search(
+    query: str, ws_name: str, kind: str | None, project: str | None, limit: int, json_output: bool
+):
     """Search across all projects in a workspace."""
     from .workspace import WorkspaceConfig, WorkspaceDB
 
@@ -517,6 +547,7 @@ _HOOK_NAMES = ["post-commit", "post-checkout"]
 def _srclight_bin() -> str:
     """Find the srclight binary path."""
     import shutil
+
     # Prefer the bin next to sys.executable (same venv)
     venv_bin = Path(sys.executable).parent / "srclight"
     if venv_bin.exists():
@@ -578,6 +609,7 @@ def _write_hook_file(hook_file: Path, snippet: str) -> bool:
         # Remove legacy (codelight) hook if present, then install new one
         if _LEGACY_MARKER_START in existing:
             import re as _re
+
             pattern = _re.compile(
                 _re.escape(_LEGACY_MARKER_START) + r".*?" + _re.escape(_LEGACY_MARKER_END),
                 _re.DOTALL,
@@ -712,6 +744,7 @@ def hook_install(ws_name: str | None):
 
     if ws_name:
         from .workspace import WorkspaceConfig
+
         config = WorkspaceConfig.load(ws_name)
         for entry in config.get_entries():
             repo_path = Path(entry.path)
@@ -734,6 +767,7 @@ def hook_uninstall(ws_name: str | None):
     """
     if ws_name:
         from .workspace import WorkspaceConfig
+
         config = WorkspaceConfig.load(ws_name)
         for entry in config.get_entries():
             repo_path = Path(entry.path)
@@ -748,9 +782,12 @@ def hook_uninstall(ws_name: str | None):
 
 @hook.command("install-agent")
 @click.option("--port", "-p", default=8742, help="Srclight server port (default: 8742)")
-@click.option("--settings-path", type=click.Path(),
-              default="~/.claude/settings.json",
-              help="Path to Claude Code settings.json")
+@click.option(
+    "--settings-path",
+    type=click.Path(),
+    default="~/.claude/settings.json",
+    help="Path to Claude Code settings.json",
+)
 def hook_install_agent(port: int, settings_path: str):
     """Install Claude Code hooks to redirect Grep/Glob to srclight.
 
@@ -825,13 +862,18 @@ fi
 
     settings_file.write_text(json.dumps(settings, indent=2) + "\n")
     click.echo(f"Updated {settings_file}")
-    click.echo("Claude Code will now prefer srclight tools over Grep/Glob when srclight is running.")
+    click.echo(
+        "Claude Code will now prefer srclight tools over Grep/Glob when srclight is running."
+    )
 
 
 @hook.command("uninstall-agent")
-@click.option("--settings-path", type=click.Path(),
-              default="~/.claude/settings.json",
-              help="Path to Claude Code settings.json")
+@click.option(
+    "--settings-path",
+    type=click.Path(),
+    default="~/.claude/settings.json",
+    help="Path to Claude Code settings.json",
+)
 def hook_uninstall_agent(settings_path: str):
     """Remove Claude Code agent redirect hooks.
 
@@ -850,9 +892,9 @@ def hook_uninstall_agent(settings_path: str):
         pre_tool_use = settings.get("hooks", {}).get("PreToolUse", [])
         original_len = len(pre_tool_use)
         pre_tool_use[:] = [
-            entry for entry in pre_tool_use
-            if not any("agent-redirect.sh" in h.get("command", "")
-                       for h in entry.get("hooks", []))
+            entry
+            for entry in pre_tool_use
+            if not any("agent-redirect.sh" in h.get("command", "") for h in entry.get("hooks", []))
         ]
 
         if len(pre_tool_use) < original_len:
@@ -884,6 +926,7 @@ def hook_status(ws_name: str | None):
     repos = []
     if ws_name:
         from .workspace import WorkspaceConfig
+
         config = WorkspaceConfig.load(ws_name)
         for entry in config.get_entries():
             repos.append((entry.name, Path(entry.path)))
@@ -899,8 +942,9 @@ def hook_status(ws_name: str | None):
         statuses = []
         for hook_name in _HOOK_NAMES:
             hf = hooks_dir / hook_name
-            if hf.exists() and (_HOOK_MARKER_START in hf.read_text()
-                                or _LEGACY_MARKER_START in hf.read_text()):
+            if hf.exists() and (
+                _HOOK_MARKER_START in hf.read_text() or _LEGACY_MARKER_START in hf.read_text()
+            ):
                 statuses.append(hook_name)
         if statuses:
             click.echo(f"  {name:<20} {', '.join(statuses)}")
@@ -928,7 +972,7 @@ def config_claude_code(port: int, workspace_name: str | None):
             "url": f"http://127.0.0.1:{port}/sse",
         }
     }
-    click.echo("Add this to ~/.claude/settings.json under \"mcpServers\":\n")
+    click.echo('Add this to ~/.claude/settings.json under "mcpServers":\n')
     click.echo(json.dumps(snippet, indent=2))
 
 

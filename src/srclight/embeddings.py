@@ -26,6 +26,7 @@ from typing import Any
 
 logger = logging.getLogger("srclight.embeddings")
 
+
 # Timeout for embedding API requests (MCP tool path). Kept short so Cursor/IDE
 # tool calls don't hang; indexing can set SRCLIGHT_EMBED_REQUEST_TIMEOUT=120.
 def _embed_request_timeout() -> int:
@@ -133,7 +134,8 @@ class OllamaProvider(EmbeddingProvider):
         payload = json.dumps({"model": self._model, "input": texts}).encode()
 
         req = urllib.request.Request(
-            url, data=payload,
+            url,
+            data=payload,
             headers={"Content-Type": "application/json"},
             method="POST",
         )
@@ -143,8 +145,7 @@ class OllamaProvider(EmbeddingProvider):
                 data = json.loads(resp.read())
         except urllib.error.URLError as e:
             raise ConnectionError(
-                f"Cannot reach Ollama at {self._base_url}. "
-                f"Is Ollama running? Error: {e}"
+                f"Cannot reach Ollama at {self._base_url}. Is Ollama running? Error: {e}"
             ) from e
 
         embeddings = data.get("embeddings", [])
@@ -187,7 +188,8 @@ class OllamaProvider(EmbeddingProvider):
         url = f"{self._base_url}/api/pull"
         payload = json.dumps({"name": self._model, "stream": False}).encode()
         req = urllib.request.Request(
-            url, data=payload,
+            url,
+            data=payload,
             headers={"Content-Type": "application/json"},
             method="POST",
         )
@@ -217,9 +219,12 @@ class OpenAIProvider(EmbeddingProvider):
         base_url: str | None = None,
     ):
         import os
+
         self._model = model
         self._api_key = api_key or os.environ.get("OPENAI_API_KEY", "")
-        self._base_url = (base_url or os.environ.get("OPENAI_BASE_URL", "https://api.openai.com")).rstrip("/")
+        self._base_url = (
+            base_url or os.environ.get("OPENAI_BASE_URL", "https://api.openai.com")
+        ).rstrip("/")
         self._dimensions: int | None = None
         if not self._api_key:
             raise ValueError(
@@ -242,13 +247,16 @@ class OpenAIProvider(EmbeddingProvider):
     def embed_batch(self, texts: list[str]) -> list[list[float]]:
         """Embed texts via OpenAI-compatible /v1/embeddings endpoint."""
         url = f"{self._base_url}/v1/embeddings"
-        payload = json.dumps({
-            "model": self._model,
-            "input": texts,
-        }).encode()
+        payload = json.dumps(
+            {
+                "model": self._model,
+                "input": texts,
+            }
+        ).encode()
 
         req = urllib.request.Request(
-            url, data=payload,
+            url,
+            data=payload,
             headers={
                 "Content-Type": "application/json",
                 "Authorization": f"Bearer {self._api_key}",
@@ -260,20 +268,16 @@ class OpenAIProvider(EmbeddingProvider):
             with urllib.request.urlopen(req, timeout=_embed_request_timeout()) as resp:
                 data = json.loads(resp.read())
         except urllib.error.HTTPError as e:
-            body = e.read().decode() if hasattr(e, 'read') else str(e)
+            body = e.read().decode() if hasattr(e, "read") else str(e)
             raise ConnectionError(f"OpenAI API error ({e.code}): {body}") from e
         except urllib.error.URLError as e:
-            raise ConnectionError(
-                f"Cannot reach {self._base_url}. Error: {e}"
-            ) from e
+            raise ConnectionError(f"Cannot reach {self._base_url}. Error: {e}") from e
 
         results = data.get("data", [])
         embeddings = [r["embedding"] for r in sorted(results, key=lambda x: x["index"])]
 
         if len(embeddings) != len(texts):
-            raise ValueError(
-                f"API returned {len(embeddings)} embeddings for {len(texts)} inputs"
-            )
+            raise ValueError(f"API returned {len(embeddings)} embeddings for {len(texts)} inputs")
 
         # Cache dimensions from first result
         if self._dimensions is None and embeddings:
@@ -298,6 +302,7 @@ class CohereProvider(EmbeddingProvider):
 
     def __init__(self, api_key: str | None = None, model: str = "embed-v4.0"):
         import os
+
         self._api_key = api_key or os.environ.get("COHERE_API_KEY", "")
         self._model = model
         if not self._api_key:
@@ -317,15 +322,18 @@ class CohereProvider(EmbeddingProvider):
 
     def embed_batch(self, texts: list[str]) -> list[list[float]]:
         """Embed texts via Cohere v2 embed API."""
-        payload = json.dumps({
-            "model": self._model,
-            "texts": texts,
-            "input_type": "search_document",
-            "embedding_types": ["float"],
-        }).encode()
+        payload = json.dumps(
+            {
+                "model": self._model,
+                "texts": texts,
+                "input_type": "search_document",
+                "embedding_types": ["float"],
+            }
+        ).encode()
 
         req = urllib.request.Request(
-            self.API_URL, data=payload,
+            self.API_URL,
+            data=payload,
             headers={
                 "Content-Type": "application/json",
                 "Authorization": f"Bearer {self._api_key}",
@@ -337,7 +345,7 @@ class CohereProvider(EmbeddingProvider):
             with urllib.request.urlopen(req, timeout=_embed_request_timeout()) as resp:
                 data = json.loads(resp.read())
         except urllib.error.HTTPError as e:
-            body = e.read().decode() if hasattr(e, 'read') else str(e)
+            body = e.read().decode() if hasattr(e, "read") else str(e)
             raise ConnectionError(f"Cohere API error ({e.code}): {body}") from e
 
         # v2 response: {"embeddings": {"float": [[...], [...]]}}
@@ -369,6 +377,7 @@ class VoyageProvider(EmbeddingProvider):
 
     def __init__(self, api_key: str | None = None, model: str = "voyage-code-3"):
         import os
+
         self._api_key = api_key or os.environ.get("VOYAGE_API_KEY", "")
         self._model = model
         if not self._api_key:
@@ -388,14 +397,17 @@ class VoyageProvider(EmbeddingProvider):
 
     def embed_batch(self, texts: list[str]) -> list[list[float]]:
         """Embed texts via Voyage API."""
-        payload = json.dumps({
-            "model": self._model,
-            "input": texts,
-            "input_type": "document",
-        }).encode()
+        payload = json.dumps(
+            {
+                "model": self._model,
+                "input": texts,
+                "input_type": "document",
+            }
+        ).encode()
 
         req = urllib.request.Request(
-            self.API_URL, data=payload,
+            self.API_URL,
+            data=payload,
             headers={
                 "Content-Type": "application/json",
                 "Authorization": f"Bearer {self._api_key}",
@@ -407,7 +419,7 @@ class VoyageProvider(EmbeddingProvider):
             with urllib.request.urlopen(req, timeout=_embed_request_timeout()) as resp:
                 data = json.loads(resp.read())
         except urllib.error.HTTPError as e:
-            body = e.read().decode() if hasattr(e, 'read') else str(e)
+            body = e.read().decode() if hasattr(e, "read") else str(e)
             raise ConnectionError(f"Voyage API error ({e.code}): {body}") from e
 
         results = data.get("data", [])
@@ -419,18 +431,18 @@ class VoyageProvider(EmbeddingProvider):
 
 def vectors_to_bytes(vectors: list[list[float]]) -> list[bytes]:
     """Convert float vectors to bytes for SQLite BLOB storage."""
-    return [struct.pack(f'{len(v)}f', *v) for v in vectors]
+    return [struct.pack(f"{len(v)}f", *v) for v in vectors]
 
 
 def vector_to_bytes(vector: list[float]) -> bytes:
     """Convert a single float vector to bytes."""
-    return struct.pack(f'{len(vector)}f', *vector)
+    return struct.pack(f"{len(vector)}f", *vector)
 
 
 def bytes_to_vector(data: bytes) -> list[float]:
     """Convert bytes back to float vector."""
     n = len(data) // 4
-    return list(struct.unpack(f'{n}f', data))
+    return list(struct.unpack(f"{n}f", data))
 
 
 def cosine_similarity(a: list[float], b: list[float]) -> float:
@@ -586,7 +598,7 @@ def embed_symbols(
     total_batches = (len(symbols) + batch_size - 1) // batch_size
 
     for batch_idx in range(0, len(symbols), batch_size):
-        batch = symbols[batch_idx:batch_idx + batch_size]
+        batch = symbols[batch_idx : batch_idx + batch_size]
         texts = [prepare_embedding_text(sym) for sym in batch]
 
         if on_progress:
