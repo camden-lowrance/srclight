@@ -552,6 +552,31 @@ CREATE VIEW order_summary AS
 SELECT user_id, COUNT(*) as cnt FROM orders GROUP BY user_id;
 """)
 
+    (src / "sprocs.sql").write_text("""\
+CREATE OR ALTER PROCEDURE farmserver.sp_getUsers
+    @OrgID INT,
+    @Active BIT = 1
+AS
+BEGIN
+    SET NOCOUNT ON
+    SELECT * FROM users WHERE org_id = @OrgID AND active = @Active
+END;
+GO
+
+CREATE PROCEDURE dbo.sp_deleteUser
+    @UserID INT
+AS
+BEGIN
+    DELETE FROM users WHERE id = @UserID
+END;
+GO
+
+CREATE PROC sp_quickCount
+AS
+    SELECT COUNT(*) FROM users;
+GO
+""")
+
     return src
 
 
@@ -561,13 +586,13 @@ def test_index_sql(db, sql_project):
     indexer = Indexer(db, config)
     stats = indexer.index(sql_project)
 
-    assert stats.files_scanned == 2
-    assert stats.files_indexed == 2
+    assert stats.files_scanned == 3
+    assert stats.files_indexed == 3
     assert stats.symbols_extracted > 0
     assert stats.errors == 0
 
     db_stats = db.stats()
-    assert db_stats["files"] == 2
+    assert db_stats["files"] == 3
     assert db_stats["symbols"] > 0
     assert "sql" in db_stats["languages"]
 
@@ -598,3 +623,16 @@ def test_index_sql(db, sql_project):
     tsql_names = [s.name for s in tsql_syms]
     assert "orders" in tsql_names
     assert "order_summary" in tsql_names
+
+    # Check stored procedures (extracted from ERROR nodes)
+    sproc_syms = db.symbols_in_file("sprocs.sql")
+    sproc_names = [s.name for s in sproc_syms]
+    sproc_kinds = {s.name: s.kind for s in sproc_syms}
+
+    assert "farmserver.sp_getUsers" in sproc_names
+    assert "dbo.sp_deleteUser" in sproc_names
+    assert "sp_quickCount" in sproc_names
+
+    assert sproc_kinds["farmserver.sp_getUsers"] == "procedure"
+    assert sproc_kinds["dbo.sp_deleteUser"] == "procedure"
+    assert sproc_kinds["sp_quickCount"] == "procedure"
