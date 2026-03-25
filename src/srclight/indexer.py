@@ -314,7 +314,6 @@ def _kind_from_capture(capture_name: str) -> str:
         "idx": "index",
         "schema": "namespace",
         "seq": "sequence",
-        "proc": "function",    # stored procedures
     }
     return mapping.get(prefix, "unknown")
 
