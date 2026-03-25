@@ -168,7 +168,10 @@ def _git_tracked_files(root: Path) -> set[str] | None:
     try:
         result = subprocess.run(
             ["git", "ls-files", "--cached", "--others", "--exclude-standard"],
-            cwd=root, capture_output=True, text=True, timeout=30,
+            cwd=root,
+            capture_output=True,
+            text=True,
+            timeout=30,
         )
         if result.returncode == 0:
             return {line for line in result.stdout.splitlines() if line}
@@ -182,7 +185,10 @@ def _get_git_head(root: Path) -> str | None:
     try:
         result = subprocess.run(
             ["git", "rev-parse", "HEAD"],
-            cwd=root, capture_output=True, text=True, timeout=5,
+            cwd=root,
+            capture_output=True,
+            text=True,
+            timeout=5,
         )
         if result.returncode == 0:
             return result.stdout.strip()
@@ -214,7 +220,13 @@ def _extract_doc_comment(source_bytes: bytes, node: Node) -> str | None:
             if first_stmt.type == "expression_statement":
                 expr = first_stmt.named_children[0] if first_stmt.named_child_count > 0 else None
                 if expr and expr.type == "string":
-                    return expr.text.decode("utf-8", errors="replace").strip().strip('"""').strip("'''").strip()
+                    return (
+                        expr.text.decode("utf-8", errors="replace")
+                        .strip()
+                        .strip('"""')
+                        .strip("'''")
+                        .strip()
+                    )
 
     return None
 
@@ -227,10 +239,8 @@ def _extract_signature(source_bytes: bytes, node: Node, lang: str) -> str | None
         ret = node.child_by_field_name("return_type")
         name_node = node.child_by_field_name("name")
         if name_node:
-            sig_end = (ret.end_byte if ret else
-                       params.end_byte if params else
-                       name_node.end_byte)
-            return source_bytes[node.start_byte:sig_end].decode("utf-8", errors="replace").strip()
+            sig_end = ret.end_byte if ret else params.end_byte if params else name_node.end_byte
+            return source_bytes[node.start_byte : sig_end].decode("utf-8", errors="replace").strip()
 
     elif lang in ("c", "cpp"):
         # For function definitions, get the declarator
@@ -248,10 +258,8 @@ def _extract_signature(source_bytes: bytes, node: Node, lang: str) -> str | None
         params = node.child_by_field_name("parameters")
         ret = node.child_by_field_name("return_type")
         if name_node:
-            sig_end = (ret.end_byte if ret else
-                       params.end_byte if params else
-                       name_node.end_byte)
-            prefix = source_bytes[node.start_byte:sig_end].decode("utf-8", errors="replace")
+            sig_end = ret.end_byte if ret else params.end_byte if params else name_node.end_byte
+            prefix = source_bytes[node.start_byte : sig_end].decode("utf-8", errors="replace")
             # Trim off decorators/export
             lines = prefix.split("\n")
             for i, line in enumerate(lines):
@@ -264,10 +272,8 @@ def _extract_signature(source_bytes: bytes, node: Node, lang: str) -> str | None
         params = node.child_by_field_name("parameters")
         ret = node.child_by_field_name("return_type")
         if name_node:
-            sig_end = (ret.end_byte if ret else
-                       params.end_byte if params else
-                       name_node.end_byte)
-            return source_bytes[node.start_byte:sig_end].decode("utf-8", errors="replace").strip()
+            sig_end = ret.end_byte if ret else params.end_byte if params else name_node.end_byte
+            return source_bytes[node.start_byte : sig_end].decode("utf-8", errors="replace").strip()
 
     return None
 
@@ -298,14 +304,22 @@ def _kind_from_capture(capture_name: str) -> str:
         "impl": "impl",
         "template": "template",
         "field_fn": "method",  # method declarations in class bodies (headers)
-        "var": "function",     # arrow functions
+        "var": "function",  # arrow functions
         "var2": "function",
-        "ctor": "function",    # C# constructors
-        "prop": "property",    # C# properties
+        "ctor": "function",  # C# constructors
+        "prop": "property",  # C# properties
         # Dart-specific
         "ext": "extension",
         "mixin": "mixin",
-        "getter": "method",    # Dart getters
+        "getter": "method",  # Dart getters
+        # SQL-specific
+        "table": "table",
+        "view": "view",
+        "matview": "view",
+        "trigger": "trigger",
+        "idx": "index",
+        "schema": "namespace",
+        "seq": "sequence",
     }
     return mapping.get(prefix, "unknown")
 
@@ -320,9 +334,12 @@ def _get_enclosing_scope(node: Node) -> list[str]:
     current = node.parent
     while current is not None:
         if current.type in (
-            "namespace_definition", "class_specifier", "struct_specifier",
+            "namespace_definition",
+            "class_specifier",
+            "struct_specifier",
             "class_definition",  # Python
-            "class_declaration", "namespace_declaration",  # C#
+            "class_declaration",
+            "namespace_declaration",  # C#
         ):
             name_node = current.child_by_field_name("name")
             if name_node:
@@ -618,28 +635,41 @@ class Indexer:
 
         logger.info(
             "Indexed %d files (%d symbols, %d edges) in %.2fs. %d unchanged, %d removed, %d errors.",
-            stats.files_indexed, stats.symbols_extracted, stats.edges_created,
-            stats.elapsed_seconds, stats.files_unchanged, stats.files_removed, stats.errors,
+            stats.files_indexed,
+            stats.symbols_extracted,
+            stats.edges_created,
+            stats.elapsed_seconds,
+            stats.files_unchanged,
+            stats.files_removed,
+            stats.errors,
         )
 
         # Signal index completion via timestamp file
         try:
             signal_file = root / ".srclight" / "last-indexed"
             signal_file.parent.mkdir(parents=True, exist_ok=True)
-            signal_file.write_text(json.dumps({
-                "timestamp": datetime.now(timezone.utc).isoformat(),
-                "files": stats.files_scanned,
-                "symbols": stats.symbols_extracted,
-                "commit": git_head,
-                "elapsed_seconds": round(stats.elapsed_seconds, 2),
-            }))
+            signal_file.write_text(
+                json.dumps(
+                    {
+                        "timestamp": datetime.now(timezone.utc).isoformat(),
+                        "files": stats.files_scanned,
+                        "symbols": stats.symbols_extracted,
+                        "commit": git_head,
+                        "elapsed_seconds": round(stats.elapsed_seconds, 2),
+                    }
+                )
+            )
         except Exception:
             logger.debug("Failed to write index signal file", exc_info=True)
 
         return stats
 
     def _extract_symbols(
-        self, file_id: int, rel_path: str, source: bytes, lang: str,
+        self,
+        file_id: int,
+        rel_path: str,
+        source: bytes,
+        lang: str,
     ) -> int:
         """Parse a file and extract symbols. Returns count of symbols extracted."""
         if lang == "markdown":
@@ -733,10 +763,93 @@ class Indexer:
             inserted.append((def_node.start_byte, def_node.end_byte, sym_id, kind))
             count += 1
 
+        # SQL fallback: extract CREATE PROCEDURE from ERROR nodes
+        # tree-sitter-sql has no create_procedure node type, so procedures
+        # parse as ERROR. Walk top-level ERROR nodes and use regex to find them.
+        if lang == "sql":
+            count += self._extract_sql_procedures(file_id, rel_path, root)
+
+        return count
+
+    def _extract_sql_procedures(
+        self,
+        file_id: int,
+        rel_path: str,
+        root: Node,
+    ) -> int:
+        """Extract stored procedures from SQL files via regex.
+
+        tree-sitter-sql does not support CREATE PROCEDURE as a grammar node,
+        so procedures parse as ERROR. This scans the full source text for
+        CREATE PROCEDURE patterns, splits on GO batch separators, and extracts
+        each procedure as a symbol.
+        """
+        import re
+
+        source_text = root.text.decode("utf-8", errors="replace")
+
+        # Split into GO-delimited batches, tracking line offsets
+        go_re = re.compile(r"^\s*GO\s*$", re.MULTILINE | re.IGNORECASE)
+        batches: list[tuple[str, int]] = []  # (batch_text, start_line)
+        prev_end = 0
+        prev_line = 0
+        for m in go_re.finditer(source_text):
+            batch = source_text[prev_end : m.start()]
+            batches.append((batch, prev_line))
+            prev_end = m.end()
+            prev_line = source_text[: m.end()].count("\n")
+        # Final batch after last GO (or entire file if no GO)
+        batches.append((source_text[prev_end:], prev_line))
+
+        proc_re = re.compile(
+            r"CREATE\s+(?:OR\s+ALTER\s+)?PROC(?:EDURE)?\s+"
+            r"(?:(\[?[\w]+\]?)\.)?(\[?[\w]+\]?)",
+            re.IGNORECASE,
+        )
+        sig_re = re.compile(
+            r"(CREATE\s+(?:OR\s+ALTER\s+)?PROC(?:EDURE)?\s+\S+.*?)(?:\bAS\b|\bWITH\b)",
+            re.IGNORECASE | re.DOTALL,
+        )
+
+        count = 0
+        for batch_text, start_line in batches:
+            m = proc_re.search(batch_text)
+            if not m:
+                continue
+
+            schema_part = m.group(1)
+            proc_name = m.group(2)
+            full_name = f"{schema_part}.{proc_name}" if schema_part else proc_name
+
+            sig_match = sig_re.search(batch_text[:2000])
+            sig = sig_match.group(1).strip() if sig_match else None
+
+            line_count = batch_text.count("\n") + 1
+            body_h = hashlib.sha256(batch_text.encode()).hexdigest()[:16]
+
+            sym = SymbolRecord(
+                file_id=file_id,
+                kind="procedure",
+                name=full_name,
+                qualified_name=full_name,
+                signature=sig,
+                start_line=start_line + 1,
+                end_line=start_line + line_count,
+                content=batch_text.strip(),
+                body_hash=body_h,
+                line_count=line_count,
+            )
+
+            self.db.insert_symbol(sym, rel_path)
+            count += 1
+
         return count
 
     def _extract_markdown_symbols(
-        self, file_id: int, rel_path: str, source: bytes,
+        self,
+        file_id: int,
+        rel_path: str,
+        source: bytes,
     ) -> int:
         """Extract symbols from a Markdown file using heading-based sections.
 
@@ -768,7 +881,7 @@ class Indexer:
             parts = []
             for child in section_node.children:
                 if child.type != "section":
-                    parts.append(source[child.start_byte:child.end_byte])
+                    parts.append(source[child.start_byte : child.end_byte])
             return b"".join(parts).decode("utf-8", errors="replace").strip()
 
         def _get_heading_info(section_node: Node) -> tuple[str | None, str | None, int]:
@@ -780,7 +893,11 @@ class Indexer:
                 if child.type == "atx_heading":
                     # Get inline text as name
                     inlines = [c for c in child.children if c.type == "inline"]
-                    name = inlines[0].text.decode("utf-8", errors="replace").strip() if inlines else None
+                    name = (
+                        inlines[0].text.decode("utf-8", errors="replace").strip()
+                        if inlines
+                        else None
+                    )
                     sig = child.text.decode("utf-8", errors="replace").strip()
                     # Determine level from marker (atx_h1_marker, atx_h2_marker, etc.)
                     markers = [c for c in child.children if c.type.startswith("atx_h")]
@@ -789,7 +906,8 @@ class Indexer:
             return None, None, 0
 
         def _walk_sections(
-            node: Node, ancestry: list[str],
+            node: Node,
+            ancestry: list[str],
         ) -> None:
             nonlocal count
 
@@ -916,43 +1034,162 @@ class Indexer:
         MIN_NAME_LEN = 4
         NOISE_NAMES = {
             # Common short identifiers
-            "get", "set", "run", "new", "end", "add", "put", "pop", "top",
-            "map", "key", "val", "len", "str", "int", "err", "log", "max",
-            "min", "abs", "all", "any", "for", "not", "and", "the",
-            "def", "var", "let", "con", "ret", "gen", "ptr", "pos",
+            "get",
+            "set",
+            "run",
+            "new",
+            "end",
+            "add",
+            "put",
+            "pop",
+            "top",
+            "map",
+            "key",
+            "val",
+            "len",
+            "str",
+            "int",
+            "err",
+            "log",
+            "max",
+            "min",
+            "abs",
+            "all",
+            "any",
+            "for",
+            "not",
+            "and",
+            "the",
+            "def",
+            "var",
+            "let",
+            "con",
+            "ret",
+            "gen",
+            "ptr",
+            "pos",
             # Common C/C++ names
-            "init", "main", "next", "prev", "data", "size", "type", "name",
-            "node", "list", "info", "item", "test", "self", "this", "true",
-            "false", "none", "null", "void", "char", "bool", "auto",
-            "file", "path", "text", "line", "args", "argv", "argc",
-            "read", "open", "send", "recv", "copy", "move", "swap",
-            "push", "find", "sort", "hash", "lock", "call", "bind",
-            "from", "into", "with", "each", "then", "done", "fail",
-            "pass", "skip", "stop", "wait", "save", "load",
-            "value", "begin", "close", "clear", "reset", "write",
-            "check", "parse", "print", "state", "count", "index",
-            "start", "empty", "erase", "front", "apply",
+            "init",
+            "main",
+            "next",
+            "prev",
+            "data",
+            "size",
+            "type",
+            "name",
+            "node",
+            "list",
+            "info",
+            "item",
+            "test",
+            "self",
+            "this",
+            "true",
+            "false",
+            "none",
+            "null",
+            "void",
+            "char",
+            "bool",
+            "auto",
+            "file",
+            "path",
+            "text",
+            "line",
+            "args",
+            "argv",
+            "argc",
+            "read",
+            "open",
+            "send",
+            "recv",
+            "copy",
+            "move",
+            "swap",
+            "push",
+            "find",
+            "sort",
+            "hash",
+            "lock",
+            "call",
+            "bind",
+            "from",
+            "into",
+            "with",
+            "each",
+            "then",
+            "done",
+            "fail",
+            "pass",
+            "skip",
+            "stop",
+            "wait",
+            "save",
+            "load",
+            "value",
+            "begin",
+            "close",
+            "clear",
+            "reset",
+            "write",
+            "check",
+            "parse",
+            "print",
+            "state",
+            "count",
+            "index",
+            "start",
+            "empty",
+            "erase",
+            "front",
+            "apply",
             # Common variable names that create cross-file noise
-            "result", "output", "input", "buffer", "config", "params",
-            "status", "error", "offset", "length", "width", "height",
-            "tensor", "image", "model", "layer", "batch", "channel",
+            "result",
+            "output",
+            "input",
+            "buffer",
+            "config",
+            "params",
+            "status",
+            "error",
+            "offset",
+            "length",
+            "width",
+            "height",
+            "tensor",
+            "image",
+            "model",
+            "layer",
+            "batch",
+            "channel",
             # Catch2/test framework internals
-            "Clara", "Detail", "Catch", "Matchers",
+            "Clara",
+            "Detail",
+            "Catch",
+            "Matchers",
         }
 
         # Only create edges TO meaningful symbol kinds (not prototypes/namespaces)
-        EDGE_TARGET_KINDS = {"function", "method", "class", "struct", "enum", "interface", "template"}
+        EDGE_TARGET_KINDS = {
+            "function",
+            "method",
+            "class",
+            "struct",
+            "enum",
+            "interface",
+            "template",
+        }
 
         filtered_names = {
-            name: syms for name, syms in name_to_symbols.items()
+            name: syms
+            for name, syms in name_to_symbols.items()
             if len(name) >= MIN_NAME_LEN and name not in NOISE_NAMES
         }
 
         # Skip names with too many symbols (ambiguous)
         MAX_SYMBOL_FANOUT = 10
         filtered_names = {
-            name: syms for name, syms in filtered_names.items()
-            if len(syms) <= MAX_SYMBOL_FANOUT
+            name: syms for name, syms in filtered_names.items() if len(syms) <= MAX_SYMBOL_FANOUT
         }
 
         # Pre-compile regex
@@ -961,9 +1198,8 @@ class Indexer:
             return 0
 
         import re
-        pattern = re.compile(
-            r"\b(" + "|".join(re.escape(n) for n in sorted_names) + r")\b"
-        )
+
+        pattern = re.compile(r"\b(" + "|".join(re.escape(n) for n in sorted_names) + r")\b")
 
         def _dir_of(path: str) -> str:
             """Get directory component of a path."""
@@ -1030,12 +1266,14 @@ class Indexer:
                     # Skip very low confidence edges
                     if confidence < 0.2:
                         continue
-                    self.db.insert_edge(EdgeRecord(
-                        source_id=source_id,
-                        target_id=target["id"],
-                        edge_type="calls",
-                        confidence=confidence,
-                    ))
+                    self.db.insert_edge(
+                        EdgeRecord(
+                            source_id=source_id,
+                            target_id=target["id"],
+                            edge_type="calls",
+                            confidence=confidence,
+                        )
+                    )
                     edge_count += 1
                     refs_for_this += 1
 
@@ -1070,17 +1308,17 @@ class Indexer:
         # C++ base class pattern: "class Foo : public Bar, private Baz"
         # Also handles struct: "struct Foo : Bar"
         cpp_base_pattern = re.compile(
-            r'(?:class|struct)\s+\w+\s*(?:<[^>]*>)?\s*:\s*'
-            r'((?:(?:public|protected|private)\s+)?[\w:]+(?:\s*<[^>]*>)?'
-            r'(?:\s*,\s*(?:(?:public|protected|private)\s+)?[\w:]+(?:\s*<[^>]*>)?)*)'
+            r"(?:class|struct)\s+\w+\s*(?:<[^>]*>)?\s*:\s*"
+            r"((?:(?:public|protected|private)\s+)?[\w:]+(?:\s*<[^>]*>)?"
+            r"(?:\s*,\s*(?:(?:public|protected|private)\s+)?[\w:]+(?:\s*<[^>]*>)?)*)"
         )
         # Extract individual base class names
         cpp_base_name_pattern = re.compile(
-            r'(?:public|protected|private)?\s*([\w]+)(?:::\w+)*(?:\s*<[^>]*>)?'
+            r"(?:public|protected|private)?\s*([\w]+)(?:::\w+)*(?:\s*<[^>]*>)?"
         )
 
         # Python base class pattern: "class Foo(Bar, Baz):"
-        py_base_pattern = re.compile(r'class\s+\w+\s*\(([^)]+)\)')
+        py_base_pattern = re.compile(r"class\s+\w+\s*\(([^)]+)\)")
 
         edge_count = 0
         for row in class_rows:
@@ -1118,11 +1356,13 @@ class Indexer:
                 for target_id in target_ids:
                     if target_id == symbol_id:
                         continue
-                    self.db.insert_edge(EdgeRecord(
-                        source_id=symbol_id,
-                        target_id=target_id,
-                        edge_type="inherits",
-                    ))
+                    self.db.insert_edge(
+                        EdgeRecord(
+                            source_id=symbol_id,
+                            target_id=target_id,
+                            edge_type="inherits",
+                        )
+                    )
                     edge_count += 1
 
         return edge_count
@@ -1157,8 +1397,13 @@ class Indexer:
             elapsed = time.monotonic() - embed_start
             rate = batch_num / elapsed if elapsed > 0 else 0
             remaining = (total - batch_num) / rate if rate > 0 else 0
-            logger.info("  Embedding batch %d/%d (%.0fs elapsed, ~%.0fs remaining)",
-                        batch_num, total, elapsed, remaining)
+            logger.info(
+                "  Embedding batch %d/%d (%.0fs elapsed, ~%.0fs remaining)",
+                batch_num,
+                total,
+                elapsed,
+                remaining,
+            )
 
         try:
             results = embed_symbols(provider, symbols, on_progress=_on_progress)
@@ -1180,6 +1425,7 @@ class Indexer:
         if results:
             try:
                 from .vector_cache import VectorCache
+
                 srclight_dir = self.config.root / ".srclight"
                 cache = VectorCache(srclight_dir)
                 cache.build_from_db(self.db.conn)

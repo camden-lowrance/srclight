@@ -26,6 +26,9 @@ from typing import Any
 
 logger = logging.getLogger("srclight.embeddings")
 
+_PROVIDER_TYPES = {"ollama", "openai", "cohere", "voyage"}
+
+
 # Timeout for embedding API requests (MCP tool path). Kept short so Cursor/IDE
 # tool calls don't hang; indexing can set SRCLIGHT_EMBED_REQUEST_TIMEOUT=120.
 def _embed_request_timeout() -> int:
@@ -104,8 +107,10 @@ class EmbeddingProvider(ABC):
 class OllamaProvider(EmbeddingProvider):
     """Embed via Ollama's HTTP API (local, zero Python ML deps).
 
-    Default model: qwen3-embedding (best quality available locally).
-    Fallback: nomic-embed-text (lighter, well-tested).
+    Good local options:
+    - embeddinggemma        -> small, fast modern default
+    - qwen3-embedding:0.6b  -> newer compact higher-quality option
+    - qwen3-embedding       -> best local quality, heaviest default Ollama tag
 
     Ollama endpoint: http://localhost:11434 (accessible from WSL to Windows Ollama).
     """
@@ -133,7 +138,8 @@ class OllamaProvider(EmbeddingProvider):
         payload = json.dumps({"model": self._model, "input": texts}).encode()
 
         req = urllib.request.Request(
-            url, data=payload,
+            url,
+            data=payload,
             headers={"Content-Type": "application/json"},
             method="POST",
         )
@@ -143,8 +149,7 @@ class OllamaProvider(EmbeddingProvider):
                 data = json.loads(resp.read())
         except urllib.error.URLError as e:
             raise ConnectionError(
-                f"Cannot reach Ollama at {self._base_url}. "
-                f"Is Ollama running? Error: {e}"
+                f"Cannot reach Ollama at {self._base_url}. Is Ollama running? Error: {e}"
             ) from e
 
         embeddings = data.get("embeddings", [])
@@ -166,8 +171,16 @@ class OllamaProvider(EmbeddingProvider):
             req = urllib.request.Request(url, method="GET")
             with urllib.request.urlopen(req, timeout=5) as resp:
                 data = json.loads(resp.read())
-            models = [m.get("name", "").split(":")[0] for m in data.get("models", [])]
-            return self._model in models or f"{self._model}:latest" in models
+            model_names = [m.get("name", "") for m in data.get("models", [])]
+            base_names = {name.split(":", 1)[0] for name in model_names}
+
+            if self._model in model_names:
+                return True
+            if self._model.endswith(":latest"):
+                return self._model.removesuffix(":latest") in base_names
+            if ":" not in self._model:
+                return self._model in base_names or f"{self._model}:latest" in model_names
+            return False
         except Exception:
             return False
 
@@ -187,7 +200,8 @@ class OllamaProvider(EmbeddingProvider):
         url = f"{self._base_url}/api/pull"
         payload = json.dumps({"name": self._model, "stream": False}).encode()
         req = urllib.request.Request(
-            url, data=payload,
+            url,
+            data=payload,
             headers={"Content-Type": "application/json"},
             method="POST",
         )
@@ -217,9 +231,12 @@ class OpenAIProvider(EmbeddingProvider):
         base_url: str | None = None,
     ):
         import os
+
         self._model = model
         self._api_key = api_key or os.environ.get("OPENAI_API_KEY", "")
-        self._base_url = (base_url or os.environ.get("OPENAI_BASE_URL", "https://api.openai.com")).rstrip("/")
+        self._base_url = (
+            base_url or os.environ.get("OPENAI_BASE_URL", "https://api.openai.com")
+        ).rstrip("/")
         self._dimensions: int | None = None
         if not self._api_key:
             raise ValueError(
@@ -242,13 +259,16 @@ class OpenAIProvider(EmbeddingProvider):
     def embed_batch(self, texts: list[str]) -> list[list[float]]:
         """Embed texts via OpenAI-compatible /v1/embeddings endpoint."""
         url = f"{self._base_url}/v1/embeddings"
-        payload = json.dumps({
-            "model": self._model,
-            "input": texts,
-        }).encode()
+        payload = json.dumps(
+            {
+                "model": self._model,
+                "input": texts,
+            }
+        ).encode()
 
         req = urllib.request.Request(
-            url, data=payload,
+            url,
+            data=payload,
             headers={
                 "Content-Type": "application/json",
                 "Authorization": f"Bearer {self._api_key}",
@@ -260,20 +280,16 @@ class OpenAIProvider(EmbeddingProvider):
             with urllib.request.urlopen(req, timeout=_embed_request_timeout()) as resp:
                 data = json.loads(resp.read())
         except urllib.error.HTTPError as e:
-            body = e.read().decode() if hasattr(e, 'read') else str(e)
+            body = e.read().decode() if hasattr(e, "read") else str(e)
             raise ConnectionError(f"OpenAI API error ({e.code}): {body}") from e
         except urllib.error.URLError as e:
-            raise ConnectionError(
-                f"Cannot reach {self._base_url}. Error: {e}"
-            ) from e
+            raise ConnectionError(f"Cannot reach {self._base_url}. Error: {e}") from e
 
         results = data.get("data", [])
         embeddings = [r["embedding"] for r in sorted(results, key=lambda x: x["index"])]
 
         if len(embeddings) != len(texts):
-            raise ValueError(
-                f"API returned {len(embeddings)} embeddings for {len(texts)} inputs"
-            )
+            raise ValueError(f"API returned {len(embeddings)} embeddings for {len(texts)} inputs")
 
         # Cache dimensions from first result
         if self._dimensions is None and embeddings:
@@ -298,6 +314,7 @@ class CohereProvider(EmbeddingProvider):
 
     def __init__(self, api_key: str | None = None, model: str = "embed-v4.0"):
         import os
+
         self._api_key = api_key or os.environ.get("COHERE_API_KEY", "")
         self._model = model
         if not self._api_key:
@@ -317,15 +334,18 @@ class CohereProvider(EmbeddingProvider):
 
     def embed_batch(self, texts: list[str]) -> list[list[float]]:
         """Embed texts via Cohere v2 embed API."""
-        payload = json.dumps({
-            "model": self._model,
-            "texts": texts,
-            "input_type": "search_document",
-            "embedding_types": ["float"],
-        }).encode()
+        payload = json.dumps(
+            {
+                "model": self._model,
+                "texts": texts,
+                "input_type": "search_document",
+                "embedding_types": ["float"],
+            }
+        ).encode()
 
         req = urllib.request.Request(
-            self.API_URL, data=payload,
+            self.API_URL,
+            data=payload,
             headers={
                 "Content-Type": "application/json",
                 "Authorization": f"Bearer {self._api_key}",
@@ -337,7 +357,7 @@ class CohereProvider(EmbeddingProvider):
             with urllib.request.urlopen(req, timeout=_embed_request_timeout()) as resp:
                 data = json.loads(resp.read())
         except urllib.error.HTTPError as e:
-            body = e.read().decode() if hasattr(e, 'read') else str(e)
+            body = e.read().decode() if hasattr(e, "read") else str(e)
             raise ConnectionError(f"Cohere API error ({e.code}): {body}") from e
 
         # v2 response: {"embeddings": {"float": [[...], [...]]}}
@@ -369,6 +389,7 @@ class VoyageProvider(EmbeddingProvider):
 
     def __init__(self, api_key: str | None = None, model: str = "voyage-code-3"):
         import os
+
         self._api_key = api_key or os.environ.get("VOYAGE_API_KEY", "")
         self._model = model
         if not self._api_key:
@@ -388,14 +409,17 @@ class VoyageProvider(EmbeddingProvider):
 
     def embed_batch(self, texts: list[str]) -> list[list[float]]:
         """Embed texts via Voyage API."""
-        payload = json.dumps({
-            "model": self._model,
-            "input": texts,
-            "input_type": "document",
-        }).encode()
+        payload = json.dumps(
+            {
+                "model": self._model,
+                "input": texts,
+                "input_type": "document",
+            }
+        ).encode()
 
         req = urllib.request.Request(
-            self.API_URL, data=payload,
+            self.API_URL,
+            data=payload,
             headers={
                 "Content-Type": "application/json",
                 "Authorization": f"Bearer {self._api_key}",
@@ -407,7 +431,7 @@ class VoyageProvider(EmbeddingProvider):
             with urllib.request.urlopen(req, timeout=_embed_request_timeout()) as resp:
                 data = json.loads(resp.read())
         except urllib.error.HTTPError as e:
-            body = e.read().decode() if hasattr(e, 'read') else str(e)
+            body = e.read().decode() if hasattr(e, "read") else str(e)
             raise ConnectionError(f"Voyage API error ({e.code}): {body}") from e
 
         results = data.get("data", [])
@@ -419,18 +443,18 @@ class VoyageProvider(EmbeddingProvider):
 
 def vectors_to_bytes(vectors: list[list[float]]) -> list[bytes]:
     """Convert float vectors to bytes for SQLite BLOB storage."""
-    return [struct.pack(f'{len(v)}f', *v) for v in vectors]
+    return [struct.pack(f"{len(v)}f", *v) for v in vectors]
 
 
 def vector_to_bytes(vector: list[float]) -> bytes:
     """Convert a single float vector to bytes."""
-    return struct.pack(f'{len(vector)}f', *vector)
+    return struct.pack(f"{len(vector)}f", *vector)
 
 
 def bytes_to_vector(data: bytes) -> list[float]:
     """Convert bytes back to float vector."""
     n = len(data) // 4
-    return list(struct.unpack(f'{n}f', data))
+    return list(struct.unpack(f"{n}f", data))
 
 
 def cosine_similarity(a: list[float], b: list[float]) -> float:
@@ -521,6 +545,7 @@ def get_provider(model: str, **kwargs) -> EmbeddingProvider:
 
     Formats:
         "ollama:qwen3-embedding" or "qwen3-embedding" -> OllamaProvider
+        "qwen3-embedding:0.6b" or "embeddinggemma:300m" -> OllamaProvider
         "openai:text-embedding-3-small" -> OpenAIProvider
         "cohere:embed-v4.0" or "embed-v4.0" -> CohereProvider
         "voyage:voyage-code-3" or "voyage-code-3" -> VoyageProvider
@@ -528,22 +553,25 @@ def get_provider(model: str, **kwargs) -> EmbeddingProvider:
     OpenAI-compatible providers (Together, Fireworks, Mistral, vLLM, etc.)
     use the "openai:" prefix with OPENAI_BASE_URL env var to set the endpoint.
     """
+    provider_type: str | None = None
+    model_name = model
+
     if ":" in model:
-        provider_type, model_name = model.split(":", 1)
-    else:
+        maybe_provider, remainder = model.split(":", 1)
+        if maybe_provider in _PROVIDER_TYPES:
+            provider_type = maybe_provider
+            model_name = remainder
+
+    if provider_type is None:
         # Default: infer provider from model name prefix
-        if model.startswith("voyage"):
+        if model_name.startswith("voyage"):
             provider_type = "voyage"
-            model_name = model
-        elif model.startswith("embed-") and ("v3" in model or "v4" in model):
+        elif model_name.startswith("embed-") and ("v3" in model_name or "v4" in model_name):
             provider_type = "cohere"
-            model_name = model
-        elif model.startswith("text-embedding"):
+        elif model_name.startswith("text-embedding"):
             provider_type = "openai"
-            model_name = model
         else:
             provider_type = "ollama"
-            model_name = model
 
     if provider_type == "ollama":
         base_url = kwargs.get("base_url", "http://localhost:11434")
@@ -586,7 +614,7 @@ def embed_symbols(
     total_batches = (len(symbols) + batch_size - 1) // batch_size
 
     for batch_idx in range(0, len(symbols), batch_size):
-        batch = symbols[batch_idx:batch_idx + batch_size]
+        batch = symbols[batch_idx : batch_idx + batch_size]
         texts = [prepare_embedding_text(sym) for sym in batch]
 
         if on_progress:

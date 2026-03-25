@@ -506,3 +506,133 @@ def test_index_php(db, php_project):
 
     # Enum
     assert "Status" in names
+
+
+@pytest.fixture
+def sql_project(tmp_path):
+    """Create a minimal SQL project."""
+    src = tmp_path / "sqlproject"
+    src.mkdir()
+
+    (src / "schema.sql").write_text("""\
+CREATE TABLE users (
+    id INT PRIMARY KEY,
+    name VARCHAR(100) NOT NULL,
+    email VARCHAR(255) UNIQUE
+);
+
+CREATE VIEW active_users AS
+SELECT * FROM users WHERE active = 1;
+
+CREATE FUNCTION get_user_count() RETURNS INT
+RETURN 0;
+
+CREATE INDEX idx_users_email ON users(email);
+
+CREATE TRIGGER user_audit
+AFTER INSERT ON users
+FOR EACH ROW
+EXECUTE FUNCTION log_change();
+
+CREATE TYPE status_enum AS ENUM ('active', 'inactive');
+
+CREATE SEQUENCE user_id_seq;
+
+CREATE SCHEMA app;
+""")
+
+    (src / "migrations.tsql").write_text("""\
+CREATE TABLE orders (
+    id INT PRIMARY KEY,
+    user_id INT,
+    total DECIMAL(10,2)
+);
+
+CREATE VIEW order_summary AS
+SELECT user_id, COUNT(*) as cnt FROM orders GROUP BY user_id;
+""")
+
+    (src / "sprocs.sql").write_text("""\
+CREATE OR ALTER PROCEDURE farmserver.sp_getUsers
+    @OrgID INT,
+    @Active BIT = 1
+AS
+BEGIN
+    SET NOCOUNT ON
+    SELECT * FROM users WHERE org_id = @OrgID AND active = @Active
+END;
+GO
+
+CREATE PROCEDURE dbo.sp_deleteUser
+    @UserID INT
+AS
+BEGIN
+    DELETE FROM users WHERE id = @UserID
+END;
+GO
+
+CREATE PROC sp_quickCount
+AS
+    SELECT COUNT(*) FROM users;
+GO
+""")
+
+    return src
+
+
+def test_index_sql(db, sql_project):
+    """Indexes SQL files and extracts symbols."""
+    config = IndexConfig(root=sql_project)
+    indexer = Indexer(db, config)
+    stats = indexer.index(sql_project)
+
+    assert stats.files_scanned == 3
+    assert stats.files_indexed == 3
+    assert stats.symbols_extracted > 0
+    assert stats.errors == 0
+
+    db_stats = db.stats()
+    assert db_stats["files"] == 3
+    assert db_stats["symbols"] > 0
+    assert "sql" in db_stats["languages"]
+
+    # Check schema.sql symbols
+    syms = db.symbols_in_file("schema.sql")
+    names = [s.name for s in syms]
+
+    assert "users" in names
+    assert "active_users" in names
+    assert "get_user_count" in names
+    assert "idx_users_email" in names
+    assert "user_audit" in names
+    assert "status_enum" in names
+    assert "user_id_seq" in names
+    assert "app" in names
+
+    # Check kinds
+    kinds = {s.name: s.kind for s in syms}
+    assert kinds["users"] == "table"
+    assert kinds["active_users"] == "view"
+    assert kinds["get_user_count"] == "function"
+    assert kinds["idx_users_email"] == "index"
+    assert kinds["user_audit"] == "trigger"
+    assert kinds["app"] == "namespace"
+
+    # Check .tsql file is also indexed
+    tsql_syms = db.symbols_in_file("migrations.tsql")
+    tsql_names = [s.name for s in tsql_syms]
+    assert "orders" in tsql_names
+    assert "order_summary" in tsql_names
+
+    # Check stored procedures (extracted from ERROR nodes)
+    sproc_syms = db.symbols_in_file("sprocs.sql")
+    sproc_names = [s.name for s in sproc_syms]
+    sproc_kinds = {s.name: s.kind for s in sproc_syms}
+
+    assert "farmserver.sp_getUsers" in sproc_names
+    assert "dbo.sp_deleteUser" in sproc_names
+    assert "sp_quickCount" in sproc_names
+
+    assert sproc_kinds["farmserver.sp_getUsers"] == "procedure"
+    assert sproc_kinds["dbo.sp_deleteUser"] == "procedure"
+    assert sproc_kinds["sp_quickCount"] == "procedure"

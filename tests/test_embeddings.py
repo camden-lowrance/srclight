@@ -1,5 +1,6 @@
 """Tests for embedding providers, vector search, and hybrid RRF."""
 
+import json
 import struct
 from unittest.mock import patch
 
@@ -28,6 +29,7 @@ from srclight.embeddings import _embed_request_timeout
 
 def test_embed_request_timeout_default():
     import os
+
     with patch.dict("os.environ", {}, clear=False):
         os.environ.pop("SRCLIGHT_EMBED_REQUEST_TIMEOUT", None)
         assert _embed_request_timeout() == 20
@@ -67,6 +69,22 @@ class MockProvider(EmbeddingProvider):
                 vec = [x / norm for x in vec]
             results.append(vec)
         return results
+
+
+class MockHTTPResponse:
+    """Minimal context-manager HTTP response for urllib mocks."""
+
+    def __init__(self, payload: dict):
+        self._payload = payload
+
+    def read(self) -> bytes:
+        return json.dumps(self._payload).encode()
+
+    def __enter__(self) -> "MockHTTPResponse":
+        return self
+
+    def __exit__(self, exc_type, exc, tb) -> bool:
+        return False
 
 
 # --- Test prepare_embedding_text ---
@@ -198,6 +216,12 @@ def test_get_provider_ollama_explicit():
     assert "nomic-embed-text" in provider.name
 
 
+def test_get_provider_ollama_tagged_model():
+    provider = get_provider("qwen3-embedding:0.6b")
+    assert isinstance(provider, OllamaProvider)
+    assert provider.name == "ollama:qwen3-embedding:0.6b"
+
+
 def test_get_provider_voyage():
     with patch.dict("os.environ", {"VOYAGE_API_KEY": "test-key"}):
         provider = get_provider("voyage-code-3")
@@ -238,6 +262,7 @@ def test_get_provider_openai_no_key():
     with patch.dict("os.environ", {}, clear=True):
         # Remove OPENAI_API_KEY if set
         import os
+
         os.environ.pop("OPENAI_API_KEY", None)
         with pytest.raises(ValueError, match="API key required"):
             get_provider("openai:text-embedding-3-small")
@@ -259,14 +284,37 @@ def test_get_provider_cohere_inferred():
 def test_get_provider_cohere_no_key():
     with patch.dict("os.environ", {}, clear=True):
         import os
+
         os.environ.pop("COHERE_API_KEY", None)
         with pytest.raises(ValueError, match="Cohere API key required"):
             get_provider("cohere:embed-v4.0")
 
 
-def test_get_provider_unknown():
-    with pytest.raises(ValueError, match="Unknown embedding provider"):
-        get_provider("unknown:model")
+def test_get_provider_unknown_prefix_defaults_to_ollama():
+    """Unknown prefix with colon falls through to Ollama (could be a tagged model)."""
+    provider = get_provider("unknown:model")
+    assert isinstance(provider, OllamaProvider)
+    assert provider.name == "ollama:unknown:model"
+
+
+def test_ollama_is_available_with_exact_tag():
+    provider = OllamaProvider(model="qwen3-embedding:0.6b")
+    payload = {"models": [{"name": "qwen3-embedding:0.6b"}]}
+
+    with patch(
+        "srclight.embeddings.urllib.request.urlopen", return_value=MockHTTPResponse(payload)
+    ):
+        assert provider.is_available() is True
+
+
+def test_ollama_is_available_with_latest_tag_for_base_model():
+    provider = OllamaProvider(model="embeddinggemma")
+    payload = {"models": [{"name": "embeddinggemma:latest"}]}
+
+    with patch(
+        "srclight.embeddings.urllib.request.urlopen", return_value=MockHTTPResponse(payload)
+    ):
+        assert provider.is_available() is True
 
 
 # --- Test embed_symbols ---
@@ -300,22 +348,42 @@ def test_db_embeddings(tmp_path):
     db.initialize()
 
     # Insert a file and symbols
-    file_id = db.upsert_file(FileRecord(
-        path="test.py", content_hash="abc123", mtime=1.0,
-        language="python", size=100, line_count=10,
-    ))
+    file_id = db.upsert_file(
+        FileRecord(
+            path="test.py",
+            content_hash="abc123",
+            mtime=1.0,
+            language="python",
+            size=100,
+            line_count=10,
+        )
+    )
 
-    sym1_id = db.insert_symbol(SymbolRecord(
-        file_id=file_id, kind="function", name="hello",
-        start_line=1, end_line=5, content="def hello(): pass",
-        body_hash="h1",
-    ), "test.py")
+    sym1_id = db.insert_symbol(
+        SymbolRecord(
+            file_id=file_id,
+            kind="function",
+            name="hello",
+            start_line=1,
+            end_line=5,
+            content="def hello(): pass",
+            body_hash="h1",
+        ),
+        "test.py",
+    )
 
-    sym2_id = db.insert_symbol(SymbolRecord(
-        file_id=file_id, kind="function", name="world",
-        start_line=6, end_line=10, content="def world(): pass",
-        body_hash="h2",
-    ), "test.py")
+    sym2_id = db.insert_symbol(
+        SymbolRecord(
+            file_id=file_id,
+            kind="function",
+            name="world",
+            start_line=6,
+            end_line=10,
+            content="def world(): pass",
+            body_hash="h2",
+        ),
+        "test.py",
+    )
 
     db.commit()
 
@@ -361,16 +429,29 @@ def test_db_embeddings_incremental(tmp_path):
     db.open()
     db.initialize()
 
-    file_id = db.upsert_file(FileRecord(
-        path="test.py", content_hash="abc", mtime=1.0,
-        language="python", size=50, line_count=5,
-    ))
+    file_id = db.upsert_file(
+        FileRecord(
+            path="test.py",
+            content_hash="abc",
+            mtime=1.0,
+            language="python",
+            size=50,
+            line_count=5,
+        )
+    )
 
-    sym_id = db.insert_symbol(SymbolRecord(
-        file_id=file_id, kind="function", name="func",
-        start_line=1, end_line=3, content="def func(): pass",
-        body_hash="v1",
-    ), "test.py")
+    sym_id = db.insert_symbol(
+        SymbolRecord(
+            file_id=file_id,
+            kind="function",
+            name="func",
+            start_line=1,
+            end_line=3,
+            content="def func(): pass",
+            body_hash="v1",
+        ),
+        "test.py",
+    )
     db.commit()
 
     # Embed it

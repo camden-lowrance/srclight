@@ -26,7 +26,7 @@ AI coding agents (Claude Code, Cursor, etc.) spend **40-60% of their tokens on o
 - **Minimal dependencies** — single SQLite file per repo, no Docker/Redis/vector DB
 - **Fully offline** — no API calls, works air-gapped (Ollama local embeddings)
 - **Incremental** — only re-indexes changed files (content hash detection)
-- **11 languages** — Python, C, C++, C#, JavaScript, TypeScript, PHP, Dart, Swift, Kotlin, Java, Go
+- **12 languages** — Python, C, C++, C#, JavaScript, TypeScript, PHP, Java, Go, SQL/T-SQL, Rust, Markdown
 - **10 document formats** — PDF, DOCX, XLSX, HTML, CSV/TSV, email (.eml), images (PNG/JPG/SVG/etc.), plain text, RST, Markdown
 - **Optional OCR** — PaddleOCR for scanned/image-only PDF pages; pytesseract for images
 - **4 search modes** — symbol names, source code (trigram), documentation (stemmed), semantic (embeddings)
@@ -53,7 +53,10 @@ pip install srclight
 # Install from source
 git clone https://github.com/srclight/srclight.git
 cd srclight
-pip install -e .
+python -m pip install -e .
+
+# If `srclight` is not on PATH in this shell yet
+python -m srclight --help
 
 # Optional: document format support (PDF, DOCX, XLSX, HTML, images)
 pip install 'srclight[docs,pdf]'
@@ -75,7 +78,7 @@ cd /path/to/your/project
 srclight index
 
 # Index with embeddings (requires Ollama running)
-srclight index --embed qwen3-embedding
+srclight index --embed embeddinggemma
 
 # Search
 srclight search "lookup"
@@ -97,14 +100,15 @@ Srclight supports embedding-based semantic search for natural language queries l
 ```bash
 # Install Ollama (https://ollama.com)
 # Pull an embedding model
-ollama pull qwen3-embedding       # Best quality (8B params, needs ~6GB VRAM)
-ollama pull nomic-embed-text      # Lighter alternative (137M params)
+ollama pull embeddinggemma        # Smallest modern default (~622MB)
+ollama pull qwen3-embedding:0.6b  # Newer compact option (~639MB)
+ollama pull qwen3-embedding       # Best local quality (8B, ~4.7GB)
 
 # Index with embeddings
-srclight index --embed qwen3-embedding
+srclight index --embed embeddinggemma
 
 # Or index workspace with embeddings
-srclight workspace index -w myworkspace --embed qwen3-embedding
+srclight workspace index -w myworkspace --embed embeddinggemma
 ```
 
 ### How It Works
@@ -119,8 +123,10 @@ srclight workspace index -w myworkspace --embed qwen3-embedding
 
 | Provider | Model | Quality | Local? | Notes |
 |----------|-------|---------|--------|-------|
-| **Ollama** (default) | `qwen3-embedding` | Best local | Yes | Needs ~6GB VRAM |
-| Ollama | `nomic-embed-text` | Good | Yes | Lighter, works on 8GB VRAM |
+| **Ollama** (recommended start) | `embeddinggemma` | Good | Yes | Small, newest, CPU-friendly |
+| Ollama | `qwen3-embedding:0.6b` | Better | Yes | Compact higher-quality option |
+| Ollama | `qwen3-embedding` | Best local | Yes | Heaviest default Ollama tag |
+| Ollama | `nomic-embed-text` | Good | Yes | Older lightweight fallback |
 | **Voyage AI** (API) | `voyage-code-3` | Best overall | No | Requires `VOYAGE_API_KEY` |
 
 ```bash
@@ -139,7 +145,7 @@ Embeddings are stored in `symbol_embeddings` table in `.srclight/index.db`. Afte
 | `embeddings_norms.npy` | Pre-computed row norms (avoids recomputation per query) |
 | `embeddings_meta.json` | Symbol ID mapping, model info, version for cache invalidation |
 
-For ~27K symbols at 4096 dims (qwen3-embedding), that's ~428 MB on disk, ~450 MB in VRAM. Incremental: only re-embeds symbols whose content changed; sidecar rebuilt after each indexing run.
+For ~27K symbols, storage scales with embedding dimension: `embeddinggemma` (768 dims) is about 80 MB on disk, while `qwen3-embedding` (4096 dims) is about 428 MB on disk and ~450 MB in VRAM. Incremental: only re-embeds symbols whose content changed; sidecar rebuilt after each indexing run.
 
 ## Multi-Repo Workspaces
 
@@ -155,7 +161,7 @@ srclight workspace add /path/to/repo2 -w myworkspace -n custom-name
 
 # Index all repos (with optional embeddings)
 srclight workspace index -w myworkspace
-srclight workspace index -w myworkspace --embed qwen3-embedding
+srclight workspace index -w myworkspace --embed embeddinggemma
 
 # Search across all repos
 srclight workspace search "Dictionary" -w myworkspace
@@ -408,7 +414,7 @@ A survey of 50+ MCP code intelligence servers across all major registries (Offic
 | Multi-repo workspace | ATTACH+UNION | None | None | None |
 | Infrastructure required | `pip install`, SQLite | None | SCIP indexer | Docker, Milvus, OpenAI API |
 | Fully local / private | Yes, zero API calls | Yes | Yes | No (needs OpenAI) |
-| Languages | 11 | Any (regex) | 5 (SCIP) | Any (chunking) |
+| Languages | 12 | Any (regex) | 5 (SCIP) | Any (chunking) |
 | MCP tools | 29 | 2 (grep, glob) | 80+ | ~10 |
 
 Unlike grep-based tools, srclight builds a persistent index with structured lookups. Unlike cloud-based solutions, everything runs locally — your code never leaves your machine. Unlike IDE plugins, srclight works with any MCP client.

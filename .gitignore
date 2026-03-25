@@ -27,8 +27,7 @@ Thumbs.db
 *.png
 mcp-publisher
 
-# CLAUDE.md is private — golden copy in Vault only
-CLAUDE.md
+uv.lock
 
 # Cursor rules are private — golden copy in Vault, symlink in repo
 .cursor/rules
